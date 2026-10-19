@@ -127,8 +127,9 @@ def test_ohne_vorgemerkte_wird_einmal_nachgefragt():
     items = p.fetch_transactions("s", ["konto"], date(2026, 10, 1))
     assert {i["id"] for i in items} == {"eb-B1", "eb-p-P1"}
     assert len(calls) == 2 and calls[1]["transaction_status"] == "PDNG"
-    assert p.last_info["pending_query"] == "1 geliefert"
-    assert p.last_info["counts"] == {"BOOK": 1, "PDNG (nachgefragt)": 1}
+    assert calls[0]["date_to"] > "2026-10-01"          # Vormerkungen liegen in der Zukunft
+    assert p.last_info["pending_query"] == "PDNG: 1 vorgemerkt"
+    assert p.last_info["counts"] == {"BOOK": 1, "PDNG": 1}
 
 
 def test_vorgemerkte_schon_dabei_keine_zweite_anfrage():
@@ -147,7 +148,7 @@ def test_filter_unbekannt_gebuchtes_bleibt():
     p, _ = provider_with(responses)
     items = p.fetch_transactions("s", ["konto"], date(2026, 10, 1))
     assert [i["id"] for i in items] == ["eb-B1"]
-    assert p.last_info["pending_query"] == "Fehler 400"
+    assert p.last_info["pending_query"] == "PDNG: Fehler 400"
 
 
 def test_abgelaufene_freigabe_bei_nachfrage_wird_gemeldet():
@@ -171,4 +172,28 @@ def test_seiten_behalten_den_filter():
     p, calls = provider_with(responses)
     items = p.fetch_transactions("s", ["konto"], date(2026, 10, 1))
     assert "eb-p-P1" in {i["id"] for i in items}
-    assert calls[-1] == {"date_from": "2026-10-01", "transaction_status": "PDNG", "continuation_key": "k2"}
+    assert calls[-1]["transaction_status"] == "PDNG" and calls[-1]["continuation_key"] == "k2"
+
+
+def test_einmal_am_tag_mehrere_varianten():
+    def responses(params):
+        if params.get("strategy") == "longest":
+            return {"transactions": [eb_tx(entry_reference="P9", status="PDNG")]}
+        return {"transactions": [eb_tx(entry_reference="B1")] if not params.get("transaction_status") else []}
+    p, calls = provider_with(responses)
+    p.probe_pending = True
+    items = p.fetch_transactions("s", ["konto"], date(2026, 10, 1))
+    assert "eb-p-P9" in {i["id"] for i in items}
+    assert p.last_info["pending_query"] == "PDNG: 0 vorgemerkt; PDNG ohne Enddatum: 0 vorgemerkt; längste Strategie: 1 vorgemerkt"
+    assert p.probe_pending is False and len(calls) == 4
+
+
+def test_enddatum_abgelehnt_dann_ohne():
+    def responses(params):
+        if "date_to" in params:
+            raise httpx.HTTPStatusError("bad", request=httpx.Request("GET", "x"), response=httpx.Response(422))
+        return {"transactions": [eb_tx(entry_reference="B1"), eb_tx(entry_reference="P1", status="PDNG")]}
+    p, _ = provider_with(responses)
+    items = p.fetch_transactions("s", ["konto"], date(2026, 10, 1))
+    assert len(items) == 2
+    assert p.last_info["pending_query"] == "Enddatum: Fehler 422"

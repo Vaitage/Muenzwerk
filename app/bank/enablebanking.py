@@ -172,29 +172,56 @@ class EnableBankingProvider(BankProvider):
                 return result
             params = {**params, "continuation_key": key}
 
+    # Vormerkungen der ING tragen den späteren Buchungstag (bis ~1 Woche in der Zukunft).
+    # Ohne Enddatum begrenzt die Schnittstelle evtl. auf heute – dann fehlen sie.
+    AHEAD_DAYS = 14
+    probe_pending = False   # sync.run setzt das höchstens einmal am Tag: mehrere Abfragen ausprobieren
+
+    def _try(self, uid: str, params: dict, counts: dict) -> tuple[list[dict], str]:
+        extra: dict[str, int] = {}
+        try:
+            items = self._fetch_pages(uid, params, extra)
+        except ConsentExpired:
+            raise
+        except Exception as exc:  # Bank kennt den Filter nicht o. Ä.
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            return [], f"Fehler {status}" if status else "Fehler"
+        for k, v in extra.items():
+            counts[k] = counts.get(k, 0) + v
+        return items, f"{sum(1 for i in items if i['pending'])} vorgemerkt"
+
     def fetch_transactions(self, session_id, account_ids, since: date) -> list[dict]:
         result: dict[str, dict] = {}
         counts: dict[str, int] = {}
-        pending_query = "nicht nötig"
+        probes: dict[str, str] = {}
+        ahead = (date.today() + timedelta(days=self.AHEAD_DAYS)).isoformat()
+        base = {"date_from": since.isoformat(), "date_to": ahead}
         for uid in account_ids:
-            items = self._fetch_pages(uid, {"date_from": since.isoformat()}, counts)
-            # Ohne Filter liefern manche Banken nur Gebuchtes. Kam nichts Vorgemerktes,
-            # einmal ausdrücklich danach fragen; geht das nicht, bleibt es beim Gebuchten.
+            try:
+                items = self._fetch_pages(uid, base, counts)
+            except ConsentExpired:
+                raise
+            except httpx.HTTPStatusError as exc:   # Enddatum in der Zukunft abgelehnt: ohne
+                probes["Enddatum"] = f"Fehler {exc.response.status_code}"
+                base = {"date_from": since.isoformat()}
+                items = self._fetch_pages(uid, base, counts)
             if not any(i["pending"] for i in items):
-                extra: dict[str, int] = {}
-                try:
-                    items += self._fetch_pages(uid, {"date_from": since.isoformat(), "transaction_status": "PDNG"}, extra)
-                    pending_query = f"{sum(extra.values())} geliefert"
-                except ConsentExpired:
-                    raise
-                except Exception as exc:  # Bank kennt den Filter nicht
-                    status = getattr(getattr(exc, "response", None), "status_code", None)
-                    pending_query = f"Fehler {status}" if status else "Fehler"
-                for k, v in extra.items():
-                    counts[f"{k} (nachgefragt)"] = counts.get(f"{k} (nachgefragt)", 0) + v
+                # Kam nichts Vorgemerktes: ausdrücklich nachfragen (einmal am Tag mehrere Varianten)
+                variants = {"PDNG": {**base, "transaction_status": "PDNG"}}
+                if self.probe_pending:
+                    variants["PDNG ohne Enddatum"] = {"date_from": since.isoformat(), "transaction_status": "PDNG"}
+                    variants["längste Strategie"] = {**base, "strategy": "longest"}
+                for name, params in variants.items():
+                    found, note = self._try(uid, params, counts)
+                    probes[name] = note
+                    items += found
+                    if any(i["pending"] for i in found):
+                        break
             for i in items:
                 result.setdefault(i["id"], i)
-        self.last_info = {"counts": counts, "pending_query": pending_query, "since": since.isoformat()}
+        self.probe_pending = False
+        self.last_info = {"counts": counts, "pending_query": "; ".join(f"{k}: {v}" for k, v in probes.items()) or "nicht nötig",
+                          "since": since.isoformat()}
         return list(result.values())
 
     @staticmethod

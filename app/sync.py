@@ -84,6 +84,13 @@ def run(conn: sqlite3.Connection, provider: BankProvider) -> dict:
     if oldest:
         since = min(since, date.fromisoformat(oldest))
 
+    # Einmal am Tag verschiedene Abfragen nach Vormerkungen ausprobieren (Fehlersuche ING)
+    probed = conn.execute("SELECT value FROM settings WHERE key = 'pending_probe_day'").fetchone()
+    today_iso = date.today().isoformat()
+    if hasattr(provider, "probe_pending") and (probed is None or probed["value"] != today_iso):
+        provider.probe_pending = True
+        conn.execute("INSERT INTO settings (key, value) VALUES ('pending_probe_day', ?) "
+                     "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (today_iso,))
     try:
         items = provider.fetch_transactions(row["session_id"], (row["account_ids"] or "").split(","), since)
     except ConsentExpired as exc:
