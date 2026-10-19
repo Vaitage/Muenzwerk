@@ -650,3 +650,5 @@ body.locked .tabbar { display: none; }
 .steps li { margin: 0 0 8px; padding-left: 2px; }
 .btn.danger-text { color: var(--danger); }
 a.btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+.fetch-info summary { font-size: 13px; color: var(--muted); cursor: pointer; margin-top: 2px; }
+.fetch-info .hint { overflow-wrap: anywhere; }

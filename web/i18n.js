@@ -473,6 +473,14 @@
     "Zinsen & Dividenden": "Interest & dividends",
     "Geschenke erhalten": "Gifts received",
     "Sonstige Einnahmen": "Other income",
+    // Abruf-Protokoll unter „Mehr → Bank“
+    "{n} gebucht": "{n} booked",
+    "neueste Buchung {date}": "newest booking {date}",
+    "Letzter Abruf: {text}": "Last fetch: {text}",
+    "Ab {date}": "From {date}",
+    "Status von der Bank: {raw}": "Status from the bank: {raw}",
+    "Vorgemerkte extra abgefragt: {result}": "Pending requested separately: {result}",
+    "Letzter Fehler: {msg}": "Last error: {msg}",
     // iPhone-Widget
     "iPhone-Widget": "iPhone widget",
     "Aktiv": "On",

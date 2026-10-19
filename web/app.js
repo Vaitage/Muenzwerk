@@ -2,7 +2,7 @@
   "use strict";
   // Version dieser App-Dateien (gleich wie __version__ in app/__init__.py). Weicht die
   // Version des Servers ab, zeigt das Handy noch eine zwischengespeicherte Fassung.
-  const APP_VERSION = "1.4.0";
+  const APP_VERSION = "1.4.1";
   const A = window.Analytics;
   const { t, tn, ord, locale } = window.I18N;
 
@@ -1274,7 +1274,8 @@
         <div class="row">
           <div class="bubble ${bank.state === "active" ? "" : "none"}">${icon("bank")}</div>
           <div class="grow"><div><b>${bank.provider === "demo" ? t("Demo-Bank") : esc(bank.bank_name || t("Bank"))}</b></div><div class="hint">${esc(bankText)}</div>
-          ${bank.last_sync ? `<div class="hint">${t("Zuletzt abgerufen: {date}", { date: new Date(bank.last_sync).toLocaleString(locale, { dateStyle: "short", timeStyle: "short" }) })}</div>` : ""}</div>
+          ${bank.last_sync ? `<div class="hint">${t("Zuletzt abgerufen: {date}", { date: new Date(bank.last_sync).toLocaleString(locale, { dateStyle: "short", timeStyle: "short" }) })}</div>` : ""}
+          ${fetchInfoHtml(bank)}</div>
         </div>
         <div class="btn-row">
           ${bank.state === "none" ? "" : `<button class="btn secondary" data-action="sync">${icon("refresh")} ${t("Jetzt abrufen")}</button>`}
@@ -1600,6 +1601,22 @@
         <p class="note" style="margin-top:0">${t("Münzwerk ist ein privates Hobbyprojekt und Open Source (AGPL-3.0). Es gibt keine Gewähr, dass Beträge, Kategorien oder Prognosen stimmen, und nichts davon ist Finanzberatung. Münzwerk steht in keiner Verbindung zu deiner Bank oder zu Enable Banking.")}</p>
         <p class="note"><a href="https://github.com/Vaitage/muenzwerk" target="_blank" rel="noopener">github.com/Vaitage/muenzwerk</a></p>
       </section>`;
+  }
+
+  // Was die Bank beim letzten Abruf geliefert hat (Fehlersuche: fehlen Umsätze?)
+  function fetchInfoHtml(bank) {
+    const f = bank.last_fetch;
+    let html = "";
+    if (f) {
+      const parts = [tn(f.booked, "{n} gebucht", "{n} gebucht"), tn(f.pending, "{n} vorgemerkt", "{n} vorgemerkt")];
+      if (f.newest) parts.push(t("neueste Buchung {date}", { date: new Date(f.newest + "T12:00:00").toLocaleDateString(locale, { day: "numeric", month: "short" }) }));
+      const raw = Object.entries(f.counts || {}).map(([k, v]) => `${k} ${v}`).join(", ");
+      html += `<details class="fetch-info"><summary>${t("Letzter Abruf: {text}", { text: esc(parts.join(" · ")) })}</summary>
+        <div class="hint">${t("Ab {date}", { date: esc(f.since || "?") })} · ${t("Status von der Bank: {raw}", { raw: esc(raw || "–") })}</div>
+        <div class="hint">${t("Vorgemerkte extra abgefragt: {result}", { result: esc(f.pending_query || "–") })}</div></details>`;
+    }
+    if (bank.last_error) html += `<div class="hint warn-text">${t("Letzter Fehler: {msg}", { msg: esc(String(bank.last_error).slice(0, 200)) })}</div>`;
+    return html;
   }
 
   // Was fehlt, damit "Verbinden" geht (Server: bank.setup_problem)

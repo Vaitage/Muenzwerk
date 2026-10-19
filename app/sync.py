@@ -42,7 +42,16 @@ def status(conn: sqlite3.Connection) -> dict:
         # Anzeigename der Bank in den Einstellungen
         "bank_name": os.environ.get("ENABLEBANKING_BANK", "") if row["provider"] == "enablebanking" else "",
         "setup": setup_problem(),
+        "last_fetch": _last_fetch(conn),
     }
+
+
+def _last_fetch(conn: sqlite3.Connection) -> dict | None:
+    row = conn.execute("SELECT value FROM settings WHERE key = 'last_fetch'").fetchone()
+    try:
+        return json.loads(row["value"]) if row else None
+    except ValueError:
+        return None
 
 
 def save_connection(conn: sqlite3.Connection, provider: str, session_id: str,
@@ -85,6 +94,19 @@ def run(conn: sqlite3.Connection, provider: BankProvider) -> dict:
         return {"ok": False, "reason": "error", "detail": str(exc)[:200]}
 
     result = ledger.import_transactions(conn, items, window_start=since)
+    # Was die Bank geliefert hat – zur Fehlersuche unter „Mehr → Bank“
+    info = {
+        **(getattr(provider, "last_info", None) or {}),
+        "at": datetime.now().isoformat(timespec="seconds"),
+        "since": since.isoformat(),
+        "booked": sum(1 for i in items if not i.get("pending")),
+        "pending": sum(1 for i in items if i.get("pending")),
+        "newest": max((i["booking_date"] for i in items if not i.get("pending")), default=None),
+    }
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES ('last_fetch', ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (json.dumps(info, ensure_ascii=False),),
+    )
     conn.execute(
         "UPDATE bank_connection SET last_sync = ?, last_error = NULL WHERE id = 1",
         (datetime.now().isoformat(timespec="seconds"),),

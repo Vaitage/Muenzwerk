@@ -157,21 +157,45 @@ class EnableBankingProvider(BankProvider):
 
     # -- Umsätze --------------------------------------------------------------
 
-    def fetch_transactions(self, session_id, account_ids, since: date) -> list[dict]:
+    def _fetch_pages(self, uid: str, params: dict, counts: dict) -> list[dict]:
         result = []
+        while True:
+            data = self._request("GET", f"/accounts/{uid}/transactions", params=params)
+            for tx in data.get("transactions", []):
+                status = str(tx.get("status") or "?")
+                counts[status] = counts.get(status, 0) + 1
+                item = self._normalize(tx)
+                if item:
+                    result.append(item)
+            key = data.get("continuation_key")
+            if not key:
+                return result
+            params = {**params, "continuation_key": key}
+
+    def fetch_transactions(self, session_id, account_ids, since: date) -> list[dict]:
+        result: dict[str, dict] = {}
+        counts: dict[str, int] = {}
+        pending_query = "nicht nötig"
         for uid in account_ids:
-            params = {"date_from": since.isoformat()}
-            while True:
-                data = self._request("GET", f"/accounts/{uid}/transactions", params=params)
-                for tx in data.get("transactions", []):
-                    item = self._normalize(tx)
-                    if item:
-                        result.append(item)
-                key = data.get("continuation_key")
-                if not key:
-                    break
-                params = {"date_from": since.isoformat(), "continuation_key": key}
-        return result
+            items = self._fetch_pages(uid, {"date_from": since.isoformat()}, counts)
+            # Ohne Filter liefern manche Banken nur Gebuchtes. Kam nichts Vorgemerktes,
+            # einmal ausdrücklich danach fragen; geht das nicht, bleibt es beim Gebuchten.
+            if not any(i["pending"] for i in items):
+                extra: dict[str, int] = {}
+                try:
+                    items += self._fetch_pages(uid, {"date_from": since.isoformat(), "transaction_status": "PDNG"}, extra)
+                    pending_query = f"{sum(extra.values())} geliefert"
+                except ConsentExpired:
+                    raise
+                except Exception as exc:  # Bank kennt den Filter nicht
+                    status = getattr(getattr(exc, "response", None), "status_code", None)
+                    pending_query = f"Fehler {status}" if status else "Fehler"
+                for k, v in extra.items():
+                    counts[f"{k} (nachgefragt)"] = counts.get(f"{k} (nachgefragt)", 0) + v
+            for i in items:
+                result.setdefault(i["id"], i)
+        self.last_info = {"counts": counts, "pending_query": pending_query, "since": since.isoformat()}
+        return list(result.values())
 
     @staticmethod
     def _normalize(tx: dict) -> dict | None:
