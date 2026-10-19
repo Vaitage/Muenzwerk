@@ -57,5 +57,10 @@ window.API = (() => {
     updates: () => req("GET", "/api/updates").catch(() => null),
     version: () => req("GET", "/api/version").catch(() => null),
     updateAction: (aktion) => req("POST", "/api/updates", { aktion }),
+    // iPhone-Widget (app/widget.py)
+    widgetKey: () => req("GET", "/api/widget/key"),
+    widgetNewKey: () => req("POST", "/api/widget/key"),
+    widgetRevoke: () => req("DELETE", "/api/widget/key"),
+    widgetSnapshot: (data) => req("PUT", "/api/widget/snapshot", data),
   };
 })();

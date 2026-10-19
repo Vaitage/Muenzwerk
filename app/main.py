@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, Field
 
-from . import __version__, accounts, auth, db, ledger, sync, updates
+from . import __version__, accounts, auth, db, ledger, sync, updates, widget
 from .bank import BankNotConfigured, get_provider
 
 log = logging.getLogger("haushaltsbuch")
@@ -130,6 +130,7 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 app.include_router(accounts.router)
 app.include_router(auth.router)
 app.include_router(updates.router)
+app.include_router(widget.router)
 
 
 def get_db():

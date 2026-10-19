@@ -2,7 +2,7 @@
   "use strict";
   // Version dieser App-Dateien (gleich wie __version__ in app/__init__.py). Weicht die
   // Version des Servers ab, zeigt das Handy noch eine zwischengespeicherte Fassung.
-  const APP_VERSION = "1.3.0";
+  const APP_VERSION = "1.4.0";
   const A = window.Analytics;
   const { t, tn, ord, locale } = window.I18N;
 
@@ -71,6 +71,29 @@
     state.ctx = A.createContext({
       transactions: txs, categories: cats, overrides: state.overrides, settings, today,
     });
+    sendWidgetSnapshot();
+  }
+
+  // Zahlen für das iPhone-Widget: dieselben wie in der Übersicht. Der Server
+  // speichert sie nur, wenn ein Widget-Schlüssel existiert (app/widget.py).
+  function widgetSnapshot() {
+    const r = A.monthReport(thisMonth, state.ctx);
+    const pending = (state.ctx.byMonth.get(thisMonth) || []).filter((x) => x.pending && x.amount_cents < 0)
+      .reduce((s, x) => s - x.amount_cents, 0);
+    return {
+      month: thisMonth,
+      budget_left_cents: Math.round(r.budgetLeft),
+      forecast_end_cents: Math.round(r.forecastEnd),
+      days_left: r.daysLeftIncl,
+      pending_cents: pending,
+      days: r.preview.map((p) => ({ date: p.iso, daily_cents: Math.round(p.daily) })),
+      next_fixed: [...r.openFixed].sort((a, b) => a.day - b.day).slice(0, 3)
+        .map((x) => ({ name: String(x.name).slice(0, 80), amount_cents: Math.abs(Math.round(x.amount_cents)), day: x.day })),
+    };
+  }
+  function sendWidgetSnapshot() {
+    if (!API.widgetSnapshot) return Promise.resolve();   // Vorschau ohne Server
+    try { return API.widgetSnapshot(widgetSnapshot()).catch(() => {}); } catch (err) { console.warn(err); return Promise.resolve(); }
   }
 
   // ------------------------------------------------------------------ Toast
@@ -1197,21 +1220,24 @@
   // ------------------------------------------------------------------ Einstellungen
   let rulesCache = [];
   async function viewSettingsAsync() {
-    [rulesCache, updatesInfo] = await Promise.all([
-      API.rules(), API.updates ? API.updates() : null, window.Auth?.loadPasskeys(),
+    [rulesCache, updatesInfo, widgetInfo] = await Promise.all([
+      API.rules(), API.updates ? API.updates() : null,
+      API.widgetKey ? API.widgetKey().catch(() => null) : null, window.Auth?.loadPasskeys(),
     ]);
     if (state.view === "settings") render();
     // App mitten in einem Update geöffnet: weiter beobachten
     if (updatesInfo?.anfrage || updatesInfo?.status?.laeuft) watchUpdates();
   }
 
-  // Unterseiten von „Mehr“: null (Hauptseite), "categories", "rules", "fixed"
+  // Unterseiten von „Mehr“: null (Hauptseite), "categories", "rules", "fixed", "widget"
   const SETTINGS_PAGES = {
     categories: () => t("Kategorien"),
     rules: () => t("Gelernte Regeln"),
     fixed: () => t("Fixkosten"),
+    widget: () => t("iPhone-Widget"),
   };
   function openSettingsPage(page) {
+    if (page !== "widget") widgetNewKey = null;   // Schlüssel nicht länger als nötig zeigen
     state.settingsPage = page;
     window.scrollTo(0, 0);
     render();
@@ -1221,6 +1247,7 @@
     if (state.settingsPage === "categories") return settingsCategories();
     if (state.settingsPage === "rules") return settingsRules();
     if (state.settingsPage === "fixed") return settingsFixed();
+    if (state.settingsPage === "widget") return settingsWidget();
     const bank = state.bank;
     const settings = state.settings;
     const fixedSum = A.recurringList(state.ctx).filter((r) => r.kind === "expense" && r.fixed).reduce((s, r) => s + r.amount_cents, 0);
@@ -1273,6 +1300,7 @@
         ${navRow("categories", "tag", t("Kategorien"), state.categories.length)}
         ${navRow("rules", "sparkle", t("Gelernte Regeln"), userRuleCount)}
         ${navRow("fixed", "calendar", t("Fixkosten"), t("{amount} im Monat", { amount: fmt0(fixedSum) }))}
+        ${widgetInfo ? navRow("widget", "phone", t("iPhone-Widget"), widgetInfo.active ? t("Aktiv") : t("Aus")) : ""}
       </section>
       ${window.Auth ? window.Auth.settingsHtml() : ""}
       ${updatesCard()}
@@ -1362,6 +1390,95 @@
         ${otherExp.length ? `<details><summary>${tn(otherExp.length, "{n} weiterer wiederkehrender Empfänger", "{n} weitere wiederkehrende Empfänger")}</summary>${otherExp.map(recRow).join("")}</details>` : ""}
       </section>
       ${regInc.length ? `<section class="card"><h2>${t("Regelmäßige Einnahmen")}</h2>${regInc.map(recRow).join("")}</section>` : ""}`;
+  }
+
+  // ------------------------------------------------------------------ iPhone-Widget (App „Scriptable“)
+  let widgetInfo = null;      // Antwort von /api/widget/key, null = ausgeblendet (Vorschau)
+  let widgetNewKey = null;    // frisch erzeugter Schlüssel – nur bis zum Verlassen der Seite sichtbar
+  let widgetScript = null;    // Skript mit eingesetzter Adresse, vorab geladen (iOS kopiert nur direkt beim Tippen)
+
+  async function loadWidgetScript() {
+    if (widgetScript) return;
+    try {
+      const res = await fetch("scriptable-widget.js", { credentials: "same-origin" });
+      if (res.ok) widgetScript = (await res.text()).replace("__MUENZWERK_URL__", location.origin);
+    } catch {}
+  }
+
+  async function copyText(text, done) {
+    try { await navigator.clipboard.writeText(text); toast(done); }
+    catch { toast(t("Kopieren ging nicht – bitte von Hand markieren.")); }
+  }
+
+  function settingsWidget() {
+    loadWidgetScript();
+    const w = widgetInfo || { active: false };
+    const steps = [
+      t("Installiere die kostenlose App „Scriptable“ aus dem App Store."),
+      t("Tippe unten auf „Skript kopieren“. Öffne Scriptable, tippe auf +, füge das Skript ein und nenne es „Münzwerk“."),
+      t("Erzeuge hier einen Widget-Schlüssel und kopiere ihn. Starte das Skript einmal in Scriptable (▶) und füge den Schlüssel ein."),
+      t("Halte auf dem Homescreen eine freie Stelle gedrückt, tippe auf „Bearbeiten → Widget hinzufügen“, wähle Scriptable (klein oder mittel) und im Widget als Script „Münzwerk“."),
+    ];
+    return `
+      <section class="card">
+        <h2>${t("Zahlen auf dem Homescreen")}</h2>
+        <p class="note" style="margin-top:0">${t("Das Widget zeigt, was bis Monatsende übrig ist, das Tagesbudget für heute, morgen und übermorgen und die nächsten Fixkosten. Mehr nicht: keine Umsätze, keine Kontodaten.")}</p>
+        <p class="note">${t("Die Zahlen rechnet Münzwerk, wenn du die App öffnest. Das Widget zeigt diesen Stand; wann es sich neu lädt, entscheidet iOS. Tailscale muss auf dem iPhone an sein.")}</p>
+      </section>
+
+      <section class="card">
+        <h2>${t("Widget-Schlüssel")}</h2>
+        <div class="row"><div class="grow">
+          <div>${w.active ? t("Aktiv seit {date}", { date: dateTime(w.created) }) : t("Kein Schlüssel – das Widget hat keinen Zugriff.")}</div>
+          ${w.active ? `<div class="hint">${w.snapshot_at ? t("Zahlen zuletzt übertragen: {date}", { date: dateTime(w.snapshot_at) }) : t("Noch keine Zahlen übertragen.")}</div>` : ""}
+        </div></div>
+        ${widgetNewKey ? `
+          <div class="key-box"><code>${esc(widgetNewKey)}</code></div>
+          <p class="note warn-text" style="margin-top:6px">${t("Wird nur jetzt angezeigt. Kopiere ihn gleich in Scriptable.")}</p>
+          <div class="btn-row"><button class="btn" data-action="widget-copy-key">${t("Schlüssel kopieren")}</button></div>` : ""}
+        <p class="note">${t("Der Schlüssel darf nur diese Zahlen lesen, sonst nichts. Ein neuer Schlüssel macht den alten sofort ungültig.")}</p>
+        <div class="btn-row">
+          <button class="btn ${widgetNewKey ? "secondary" : ""}" data-action="widget-new">${w.active ? t("Neuer Schlüssel") : t("Schlüssel erzeugen")}</button>
+          ${w.active ? `<button class="btn secondary danger-text" data-action="widget-revoke">${t("Sperren")}</button>` : ""}
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>${t("So richtest du es ein")}</h2>
+        <ol class="steps">${steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>
+        <div class="btn-row">
+          <button class="btn secondary" data-action="widget-copy-script">${t("Skript kopieren")}</button>
+          <a class="btn secondary" href="https://apps.apple.com/app/scriptable/id1405459188" target="_blank" rel="noopener">${t("Scriptable öffnen")}</a>
+        </div>
+      </section>`;
+  }
+
+  async function widgetAction(act) {
+    if (act === "widget-copy-script") {
+      if (!widgetScript) { await loadWidgetScript(); if (!widgetScript) return toast(t("Skript konnte nicht geladen werden.")); }
+      return copyText(widgetScript, t("Skript kopiert"));
+    }
+    if (act === "widget-copy-key") return copyText(widgetNewKey, t("Schlüssel kopiert"));
+    const create = async () => {
+      try {
+        const r = await API.widgetNewKey();
+        widgetNewKey = r.key;
+        await sendWidgetSnapshot();          // gleich die ersten Zahlen bereitstellen
+        widgetInfo = await API.widgetKey();
+      } catch (err) { toast(err.message); }
+      render();
+    };
+    if (act === "widget-new") {
+      if (!widgetInfo?.active) return create();
+      return confirmSheet(t("Neuen Schlüssel erzeugen?"), t("Der alte Schlüssel hört sofort auf zu gelten. Im Widget musst du danach den neuen eingeben."), t("Neu erzeugen"), create, "accent");
+    }
+    if (act === "widget-revoke") {
+      return confirmSheet(t("Widget-Schlüssel sperren?"), t("Das Widget kann danach keine Zahlen mehr laden."), t("Sperren"), async () => {
+        try { await API.widgetRevoke(); widgetInfo = { active: false }; widgetNewKey = null; toast(t("Schlüssel gesperrt")); }
+        catch (err) { toast(err.message); }
+        render();
+      });
+    }
   }
 
   // ------------------------------------------------------------------ Updates (nur mit UPDATES_IN_APP=1)
@@ -1533,6 +1650,7 @@
     if (tab) {
       state.view = tab.dataset.tab;
       state.settingsPage = null;   // „Mehr“ öffnet immer die Hauptseite
+      widgetNewKey = null;
       window.scrollTo(0, 0);
       render();
       if (state.view === "settings") viewSettingsAsync();
@@ -1572,6 +1690,7 @@
     if (act === "undo") return undoLast();
     if (act === "newcat") return openCategorySheet(state.settingsKind);
     if (act === "sync") return runSync(true);
+    if (act?.startsWith("widget-")) return widgetAction(act);
 
     const ub = e.target.closest("[data-update]");
     if (ub) {

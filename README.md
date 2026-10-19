@@ -64,6 +64,8 @@ Taken from the demo with made-up data.
 - **Bank access monitoring** – PSD2 access expires after 90–180 days. Münzwerk shows
   when, warns a week ahead and offers *Reconnect*.
 - **Passkey sign-in** – Face ID / fingerprint, locks itself after 15 minutes.
+- **iPhone widget** – money left and today's daily budget on the home or lock screen,
+  via the free app [Scriptable](https://scriptable.app) and a read-only widget key.
 - **German and English** – follows your device language and can be switched under *More*.
 
 ## How it works
@@ -182,6 +184,19 @@ For a private fork the setup creates a read-only SSH key, which you add once as 
 (without write access) in the repository settings. Log: `~/kontor-update.log`; turn it off with
 `crontab -e`.
 
+### iPhone widget (optional)
+
+Under *More → iPhone widget* you create a widget key and copy a ready-made script for the
+free app [Scriptable](https://scriptable.app) (the app fills in its own address). Paste it into
+Scriptable, run it once to enter the key, then add a Scriptable widget (small, medium or lock
+screen) and choose the script. It shows money left until month end, the daily budget for the
+next three days and the next fixed cost, in light and dark mode.
+
+The numbers are calculated by the app (exactly as on the overview) and sent to the server
+each time you open it; the widget shows that state and says how old it is. iOS decides how
+often widgets refresh. The phone needs to reach the server (e.g. Tailscale on); otherwise
+the widget shows the last state it loaded.
+
 ### Backups
 
 `tools/backup/` contains example scripts for encrypted nightly backups of `data/`
@@ -200,6 +215,9 @@ your PC). Back up `data/` one way or another – it holds your database and bank
 - **Passkey sign-in:** without it, the API returns no data. The first passkey needs the
   one-time setup code from the server log, further ones can only be added after signing in.
   Deleting a passkey ends all other sessions; each sign-in uses its own one-time challenge.
+- **Widget key:** the only access without a session. It can read exactly one thing,
+  `GET /api/widget/data` (money left, daily budget, next fixed costs – no transactions or
+  account details). Only a hash is stored; a new key or *Revoke* invalidates the old one at once.
 - **Files:** the database is readable only by the app user; the container doesn't run as root.
 - **Not encrypted at rest:** whoever takes the SD card can read the database. Backups are encrypted.
 

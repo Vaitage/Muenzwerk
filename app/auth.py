@@ -73,6 +73,8 @@ CHALLENGE_SECONDS = 300
 # Bank (die kommt oft in Safari statt in der Homescreen-App an und ist über
 # den Zufallswert "state" abgesichert).
 OPEN_PATHS = ("/api/auth/", "/api/bank/callback")
+# Genau dieser Pfad prüft selbst seinen eigenen Widget-Schlüssel (app/widget.py)
+OPEN_EXACT = ("/api/widget/data",)
 
 router = APIRouter(prefix="/api/auth")
 
@@ -209,7 +211,8 @@ def is_logged_in(request: Request, conn: sqlite3.Connection) -> bool:
 def needs_login(request: Request) -> bool:
     """Für die Schutzschicht in main.py: Muss diese Anfrage angemeldet sein?"""
     path = request.url.path
-    if not auth_required() or not path.startswith("/api/") or path.startswith(OPEN_PATHS):
+    if not auth_required() or not path.startswith("/api/") or path.startswith(OPEN_PATHS) \
+            or path in OPEN_EXACT:
         return False
     with db.session() as conn:
         return not session_valid(conn, request.cookies.get(cookie_name()))

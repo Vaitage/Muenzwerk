@@ -65,6 +65,8 @@ Aufnahmen aus der Vorschau mit erfundenen Beispieldaten.
 - **Bankfreigabe im Blick** – die PSD2-Freigabe läuft nach 90–180 Tagen ab. Münzwerk zeigt
   das Datum, warnt eine Woche vorher und bietet „Neu verbinden“ an.
 - **Anmeldung per Passkey** – Face ID / Fingerabdruck, sperrt sich nach 15 Minuten.
+- **iPhone-Widget** – Übrig und Tagesbudget auf dem Home- oder Sperrbildschirm, über die
+  kostenlose App [Scriptable](https://scriptable.app) und einen nur lesenden Widget-Schlüssel.
 - **Deutsch und Englisch** – richtet sich nach der Sprache des Geräts, umschaltbar unter „Mehr“.
 
 ## Aufbau
@@ -187,6 +189,20 @@ zurück auf den vorherigen. Bei einem privaten Fork legt die Einrichtung einen n
 SSH-Schlüssel an, den du einmal als *Deploy key* (ohne Schreibrecht) in den Repository-Einstellungen
 einträgst. Protokoll: `~/kontor-update.log`, ausschalten mit `crontab -e`.
 
+### iPhone-Widget (optional)
+
+Unter „Mehr → iPhone-Widget“ erzeugst du einen Widget-Schlüssel und kopierst ein fertiges Skript
+für die kostenlose App [Scriptable](https://scriptable.app) (die eigene Adresse setzt die App ein).
+In Scriptable einfügen, einmal starten und den Schlüssel eingeben, dann ein Scriptable-Widget
+hinzufügen (klein, mittel oder Sperrbildschirm) und das Skript wählen. Es zeigt, was bis
+Monatsende übrig ist, das Tagesbudget für die nächsten drei Tage und die nächsten Fixkosten,
+hell und dunkel.
+
+Die Zahlen rechnet die App (genau wie in der Übersicht) und schickt sie bei jedem Öffnen an den
+Server; das Widget zeigt diesen Stand und sagt, wie alt er ist. Wie oft Widgets neu laden,
+entscheidet iOS. Das iPhone muss den Server erreichen (z. B. Tailscale an), sonst zeigt das
+Widget den zuletzt geladenen Stand.
+
 ### Backups
 
 Unter `tools/backup/` liegen Beispielskripte für verschlüsselte nächtliche Backups von
@@ -207,6 +223,10 @@ liegen Datenbank und Bankschlüssel.
   erste Passkey braucht den einmaligen Einrichtungscode aus dem Server-Log, weitere gehen
   nur nach Anmeldung. Wird ein Passkey gelöscht, enden alle anderen Sitzungen; jede
   Anmeldung nutzt ihre eigene, einmalige Challenge.
+- **Widget-Schlüssel:** der einzige Zugang ohne Anmeldung. Er darf genau eine Sache lesen,
+  `GET /api/widget/data` (Übrig, Tagesbudget, nächste Fixkosten – keine Umsätze, keine
+  Kontodaten). Gespeichert wird nur ein Hash; ein neuer Schlüssel oder „Sperren“ macht den
+  alten sofort ungültig.
 - **Dateien:** Datenbank nur für den App-Benutzer lesbar; der Container läuft nicht als root.
 - **Nicht verschlüsselt gespeichert:** Wer die SD-Karte mitnimmt, kann die Datenbank lesen.
   Die Backups sind verschlüsselt.
