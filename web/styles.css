@@ -629,3 +629,16 @@ body.locked .tabbar { display: none; }
 .top-back:active { opacity: 0.5; }
 .cat-title { display: flex; align-items: center; gap: 10px; }
 .cat-title .bubble { flex: none; }
+
+/* Ersparnisse (Vermögen) */
+.savings-sum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+.savings-sum > div { background: var(--surface-2); border-radius: 12px; padding: 8px 10px; min-width: 0; }
+.savings-sum .sub { display: block; font-size: 12px; color: var(--muted); }
+.savings-sum b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.savings .catrow .hint { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.savings .notice { margin-top: 10px; width: 100%; }
+.check-reason { font-size: 13px; color: var(--warn); margin: 14px 2px 6px; }
+/* Statistik: Zeile "Ersparnisse" ist antippbar */
+.kpi-link { display: block; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; border-top: 1px solid var(--line); }
+.kpi-link:active { background: var(--surface-2); }
+.kpi-link + .kpi-row { border-top: 1px solid var(--line); }

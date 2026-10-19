@@ -171,3 +171,44 @@ test("Girokonto: fällige Vormerkungen werden vom gebuchten Stand abgezogen", ()
   // Andere Konten bleiben unberührt
   assert.equal(A.accountValueAt({ type: "savings", values: acc.values, match: "x" }, "2026-10-18", txs).value, 146424);
 });
+
+test("Ersparnisse: je Spartopf, dieser Monat und insgesamt, dazu Prüfhinweise", () => {
+  const cats = [...categories, { id: 6, name: "Sparen-Kleingeld", kind: "expense", icon: "piggy", is_savings: true }, { id: 7, name: "Kredit", kind: "expense", icon: "bank" }];
+  const txs = [
+    { ...tx("2026-09-01", -15000, "Mustermann", 3), purpose: "Sparplan Monatliche Einzahlung" },
+    { ...tx("2026-10-01", -15000, "Mustermann", 3), purpose: "Sparplan Monatliche Einzahlung" },
+    { ...tx("2026-10-01", -15000, "Mustermann", 7), purpose: "Sparplan Monatliche Einzahlung" },   // gleich wie die Ersparnis, aber Kredit
+    { ...tx("2026-10-15", -50000, "Mustermann", 7), purpose: "Bank AG 12345 Rate" },              // echte Kreditrate: kein Hinweis
+    { ...tx("2026-10-03", -40, "Kleingeld Plus - Sparen", 6), purpose: "Überweisung / Aus Kauf 9,60- bei REWE" },
+    { ...tx("2026-09-12", -27, "Kleingeld Plus - Sparen", 6), purpose: "Überweisung / Aus Kauf 3,73- bei Kiosk" },
+    { ...tx("2026-10-05", -2399, "Beispiel Markt", 6), purpose: "Kaufumsatz VISA Card EUR 23,99" },  // Einkauf im Spartopf
+    { ...tx("2026-10-06", -10000, "Beispiel Bank", 1), purpose: "Tagesgeld Einzahlung" },            // klingt nach Sparen
+  ];
+  const ctx = A.createContext({ transactions: txs, categories: cats, overrides: {}, settings: { shift_from_day: 15, large_expense_cents: 25000 }, today: "2026-10-18" });
+  const s = A.savingsOverview(ctx);
+  const sparen = s.pots.find((p) => p.name === "Sparen");
+  assert.equal(sparen.total, 30000);
+  assert.equal(sparen.thisMonth, 15000);
+  assert.equal(sparen.recipients[0].name, "Mustermann");
+  const klein = s.pots.find((p) => p.name === "Sparen-Kleingeld");
+  assert.equal(klein.count, 3);
+  assert.equal(s.thisMonth, 15000 + 40 + 2399);
+  const reasons = Object.fromEntries(s.checks.map((c) => [c.tx.counterparty + " " + c.tx.amount_cents, c.reason]));
+  assert.deepEqual(reasons, {
+    "Mustermann -15000": "like_other",
+    "Beispiel Markt -2399": "card",
+    "Beispiel Bank -10000": "words",
+  });
+});
+
+test("Ersparnisse: ein einzelner Ausreißer im Spartopf meldet nicht alle ähnlichen Umsätze", () => {
+  const txs = [
+    { ...tx("2026-10-02", -500, "Bäckerei Beispiel", 3), purpose: "Kaufumsatz VISA Card" },   // falsch im Spartopf
+    { ...tx("2026-10-03", -500, "Bäckerei Beispiel", 2), purpose: "Kaufumsatz VISA Card" },
+    { ...tx("2026-10-04", -500, "Bäckerei Beispiel", 2), purpose: "Kaufumsatz VISA Card" },
+  ];
+  const ctx = A.createContext({ transactions: txs, categories, overrides: {}, settings: { shift_from_day: 15, large_expense_cents: 25000 }, today: "2026-10-18" });
+  const checks = A.savingsOverview(ctx).checks;
+  assert.equal(checks.length, 1);
+  assert.equal(checks[0].reason, "card");
+});

@@ -327,6 +327,71 @@
   }
 
   // Angesparter Überschuss über die ganze Zeit (Monat für Monat aufaddiert).
+  // ------------------------------------------------------------ Ersparnisse
+  // Wohin das Geld geht: je Spartopf (= Spar-Kategorie) dieser Monat, insgesamt
+  // und der Monatsschnitt, dazu Hinweise auf Buchungen, die wohl falsch sitzen.
+  // Grundlage sind nur die Überweisungen, die die App sieht (keine Kontostände).
+  const counterpartyKey = (s) => String(s || "").toLowerCase().replace(/[^a-zäöüß ]+/g, " ").split(/\s+/).filter(Boolean).join(" ");
+  const SAVINGS_WORDS = /spar(plan|en|konto|rate)|invest|depot|\betf\b|tagesgeld|extra-?konto|festgeld|bauspar|wertpapier|vermögenswirksam/i;
+  const CARD_PAYMENT = /kaufumsatz|visa card|girocard|mastercard|kartenzahlung/i;
+
+  function savingsOverview(ctx) {
+    const booked = ctx.transactions.filter((t) => !t.pending);
+    const saved = booked.filter((t) => ctx.isSavings(t));
+    const pots = new Map();
+    for (const t of saved) {
+      const c = ctx.catMap.get(t.category_id);
+      if (!pots.has(c.id)) pots.set(c.id, { id: c.id, name: c.name, icon: c.icon, thisMonth: 0, total: 0, count: 0, months: new Set(), recipients: new Map() });
+      const p = pots.get(c.id);
+      const v = -t.amount_cents;   // Einzahlen positiv, Abheben negativ
+      p.total += v;
+      p.count++;
+      p.months.add(t.budget_month);
+      if (t.budget_month === ctx.currentMonth) p.thisMonth += v;
+      // Wer bekommt das Geld? Empfänger, bei Überweisungen an sich selbst lieber der Zweck
+      const who = t.counterparty || "?";
+      const r = p.recipients.get(who) || { name: who, purpose: t.purpose || "", total: 0, count: 0 };
+      r.total += v;
+      r.count++;
+      p.recipients.set(who, r);
+    }
+    const months = Math.max(1, monthRange(ctx.firstMonth, ctx.currentMonth).length);
+    const list = [...pots.values()].map((p) => ({
+      ...p, months: p.months.size, avg: Math.round(p.total / months),
+      recipients: [...p.recipients.values()].sort((a, b) => b.total - a.total),
+    })).sort((a, b) => b.total - a.total);
+
+    // Prüfen: (1) klingt nach Sparen, zählt aber als Ausgabe
+    //         (2) gleicher Empfänger und Zweck wie eine Ersparnis, aber anders zugeordnet
+    //         (3) Kartenzahlung in einer Spar-Kategorie (eher ein Einkauf)
+    // Muster, die mindestens zweimal als Ersparnis vorkommen (kein Einkauf) – ein
+    // einzelner Ausreißer im Spartopf soll nicht alle ähnlichen Umsätze melden
+    const keyOf = (t) => `${counterpartyKey(t.counterparty)}|${counterpartyKey(t.purpose).split(" ").slice(0, 3).join(" ")}`;
+    const keyCount = new Map();
+    for (const t of saved) if (!CARD_PAYMENT.test(t.purpose || "")) keyCount.set(keyOf(t), (keyCount.get(keyOf(t)) || 0) + 1);
+    const savedKeys = new Set([...keyCount].filter(([, n]) => n >= 2).map(([k]) => k));
+    const checks = [];
+    for (const t of booked) {
+      if (ctx.isSavings(t)) {
+        if (t.amount_cents < 0 && CARD_PAYMENT.test(t.purpose || "") && !SAVINGS_WORDS.test(t.counterparty || "")) checks.push({ tx: t, reason: "card" });
+        continue;
+      }
+      if (t.amount_cents >= 0) continue;
+      if (savedKeys.has(keyOf(t))) checks.push({ tx: t, reason: "like_other" });
+      else if (SAVINGS_WORDS.test(`${t.counterparty} ${t.purpose}`)) checks.push({ tx: t, reason: "words" });
+    }
+    checks.sort((a, b) => b.tx.booking_date.localeCompare(a.tx.booking_date));
+
+    return {
+      pots: list,
+      thisMonth: list.reduce((s, p) => s + p.thisMonth, 0),
+      total: list.reduce((s, p) => s + p.total, 0),
+      avg: Math.round(list.reduce((s, p) => s + p.total, 0) / months),
+      since: ctx.firstMonth,
+      checks,
+    };
+  }
+
   function cumulative(ctx, upto = ctx.lastMonth) {
     let surplus = 0, savings = 0;
     return monthRange(ctx.firstMonth, upto).map((m) => {
@@ -506,6 +571,7 @@
   return {
     RECURRING, norm, addMonths, daysIn, isoOf, ibanKey,
     createContext, classify, recurringKey, totalsFor, monthTotals, monthReport, stats, cumulative, recurringList,
+    savingsOverview, counterpartyKey,
     linkedTransfers, accountValueAt, loanInfo, wealth, searchTransactions,
   };
 });

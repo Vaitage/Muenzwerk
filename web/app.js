@@ -2,7 +2,7 @@
   "use strict";
   // Version dieser App-Dateien (gleich wie __version__ in app/__init__.py). Weicht die
   // Version des Servers ab, zeigt das Handy noch eine zwischengespeicherte Fassung.
-  const APP_VERSION = "1.2.1";
+  const APP_VERSION = "1.3.0";
   const A = window.Analytics;
   const { t, tn, ord, locale } = window.I18N;
 
@@ -680,7 +680,7 @@
     html += `<section class="card">
       ${kpi("wallet", t("Einkommen"), T.income, P.income, true, "pos")}
       ${kpi("basket", t("Ausgaben"), T.expense, P.expense, false, "neg")}
-      ${kpi("piggy", t("Ersparnisse"), T.savings, P.savings, true)}
+      <button class="kpi-link" data-tab="wealth" aria-label="${t("Ersparnisse anzeigen")}">${kpi("piggy", t("Ersparnisse"), T.savings, P.savings, true)}</button>
       ${kpi("trend", t("Überschuss"), T.surplus, P.surplus, true, T.surplus >= 0 ? "pos" : "neg")}
     </section>`;
 
@@ -784,6 +784,59 @@
     return a.bank ? t("von der Bank") : t("von Hand");
   }
 
+  // Ersparnisse: wohin das Geld geht (aus den Überweisungen, ohne Kontostände)
+  const CHECK_TEXT = {
+    like_other: () => t("Gleicher Empfänger und Zweck wie eine Ersparnis, zählt hier aber nicht als Ersparnis"),
+    words: () => t("Klingt nach Sparen, zählt aber als Ausgabe"),
+    card: () => t("Kartenzahlung in einem Spartopf – eher ein Einkauf?"),
+  };
+  function savingsCard() {
+    const s = A.savingsOverview(state.ctx);
+    if (!s.pots.length && !s.checks.length) {
+      return `<section class="card"><h2>${t("Ersparnisse")}</h2>
+        <p class="note" style="margin-top:0">${t("Noch keine Ersparnisse. Ordne Überweisungen aufs Sparkonto oder ins Depot einer Spar-Kategorie zu (z. B. „Sparen“), dann siehst du hier, wohin dein Geld geht.")}</p></section>`;
+    }
+    const max = Math.max(1, ...s.pots.map((p) => Math.abs(p.total)));
+    return `<section class="card savings">
+      <h2>${t("Ersparnisse")}</h2>
+      <div class="savings-sum">
+        <div><span class="sub">${t("Diesen Monat")}</span><b>${fmt(s.thisMonth)}</b></div>
+        <div><span class="sub">${t("Insgesamt seit {date}", { date: monthLabel(s.since) })}</span><b>${fmt(s.total)}</b></div>
+        <div><span class="sub">${t("Ø pro Monat")}</span><b>${fmt0(s.avg)}</b></div>
+      </div>
+      ${s.pots.map((p) => `
+        <button class="catrow" data-savpot="${p.id}">
+          <div class="bubble">${icon(p.icon)}</div>
+          <div class="name"><div>${esc(p.name)} <small class="hint">${p.count}×</small></div>
+            <div class="hint">${esc(p.recipients.slice(0, 2).map((r) => r.name).join(", "))}</div>
+            <div class="bar"><i style="width:${(Math.abs(p.total) / max) * 100}%"></i></div></div>
+          <div class="amt">${fmt(p.total)}<small>${t("diesen Monat {amount}", { amount: fmt0(p.thisMonth) })}</small></div>
+        </button>`).join("")}
+      ${s.checks.length ? `<button class="notice warn" data-action="savings-check">${icon("help")}<div><b>${tn(s.checks.length, "{n} Buchung prüfen", "{n} Buchungen prüfen")}</b><span>${t("Sieht nach Sparen aus oder sitzt im falschen Topf")}</span></div></button>` : ""}
+      <p class="note">${t("Gezählt werden die Überweisungen vom Girokonto, ohne Zinsen und Kursgewinne. Antippen zeigt die Buchungen; dort lässt sich jede neu zuordnen.")}</p>
+    </section>`;
+  }
+
+  function openSavingsPot(id) {
+    const cat = catById(id);
+    const list = state.transactions.filter((tx) => tx.category_id === id && !tx.pending);
+    openTxListSheet(cat?.name || t("Ersparnisse"), t("Spartopf, alle Monate"), list, () => openSavingsPot(id));
+  }
+
+  function openSavingsChecks() {
+    const s = A.savingsOverview(state.ctx);
+    const sheet = openSheet(`
+      <h3>${t("Ersparnisse prüfen")}</h3>
+      <div class="meta">${t("Antippen und richtig zuordnen. Passt alles, einfach so lassen.")}</div>
+      ${s.checks.length ? s.checks.map((c) => `<div class="check-reason">${esc(CHECK_TEXT[c.reason]())}</div><div class="list">${txRow(c.tx)}</div>`).join("") : `<div class="hint">${t("Alles in Ordnung.")}</div>`}`);
+    sheet.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-tx]");
+      if (!b) return;
+      const tx = state.transactions.find((x) => String(x.id) === b.dataset.tx);
+      if (tx) openTxSheet(tx, openSavingsChecks);
+    });
+  }
+
   function viewWealth() {
     const w = A.wealth(state.ctx, state.accounts);
     if (!state.accounts.length) {
@@ -792,7 +845,7 @@
         <h2 style="margin-top:12px">${t("Dein Vermögen auf einen Blick")}</h2>
         <p class="note">${t("Lege Girokonto, Sparkonten, Depots und Kredite an. Was die Bank liefert, kommt automatisch. Depotwerte trägst du ab und zu selbst ein, Kredite rechnet die App mit dem Tilgungsplan weiter.")}</p>
         <button class="btn block" data-action="newaccount" style="margin-top:14px">${icon("plus")} ${t("Erstes Konto anlegen")}</button>
-      </section>`;
+      </section>${savingsCard()}`;
     }
     const s = w.series.filter((p) => p.assets || p.debts);
     const first = s[0];
@@ -822,6 +875,7 @@
         endLabel: { point: pts.at(-1), cls: "s-main", aria: `${t("Nettovermögen")} ${fmt(w.net)}` },
       }) : ""}
     </section>`;
+    html += savingsCard();
 
     for (const g of w.groups) {
       html += `<section class="card acc-group">
@@ -1497,6 +1551,8 @@
     if (et) { state.statsExpTab = et.dataset.exptab; return render(); }
     const sc = e.target.closest("[data-statcat]");
     if (sc) return openCategoryList(sc.dataset.statcat, sc.dataset.scope);
+    const pot = e.target.closest("[data-savpot]");
+    if (pot) return openSavingsPot(Number(pot.dataset.savpot));
     const sf = e.target.closest("[data-statfix]");
     if (sf) return openFixedList(sf.dataset.statfix);
 
@@ -1512,6 +1568,7 @@
     const ec = e.target.closest("[data-editcat]");
     if (ec) { const c = catById(Number(ec.dataset.editcat)); if (c) openCategoryEditSheet(c); return; }
     if (act === "connect") return connectBank();
+    if (act === "savings-check") return openSavingsChecks();
     if (act === "undo") return undoLast();
     if (act === "newcat") return openCategorySheet(state.settingsKind);
     if (act === "sync") return runSync(true);
