@@ -1,0 +1,89 @@
+name: Bug report / Fehler melden
+description: Something doesn't work as expected. / Etwas funktioniert nicht wie erwartet.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > [!CAUTION]
+        > **Never post real bank data.** No IBANs, account numbers, real amounts, names of payees,
+        > references, balances, `.env` contents, keys or unredacted screenshots. Issues are public.
+        > If you can, reproduce the problem with the demo bank (`BANK_PROVIDER=demo`).
+        >
+        > **Keine echten Bankdaten posten.** Keine IBANs, Kontonummern, echten Beträge, Empfänger,
+        > Verwendungszwecke, Kontostände, Inhalte der `.env`, Schlüssel oder ungeschwärzten Bilder.
+        > Issues sind öffentlich. Wenn möglich, den Fehler mit der Demo-Bank nachstellen.
+
+        Security vulnerabilities: please **don't** open an issue, see [SECURITY.md](https://github.com/Vaitage/muenzwerk/blob/main/SECURITY.md).
+        Sicherheitslücken bitte **nicht** hier melden, siehe SECURITY.md.
+
+        Münzwerk is a hobby project – answers may take a while. / Münzwerk ist ein Hobbyprojekt – Antworten können dauern.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened? / Was ist passiert?
+      placeholder: "A clear description of the problem."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce / Schritte zum Nachstellen
+      placeholder: |
+        1. Open …
+        2. Tap …
+        3. See …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect? / Was hättest du erwartet?
+    validations:
+      required: true
+  - type: dropdown
+    id: bank
+    attributes:
+      label: Bank provider / Bankanbindung
+      options:
+        - Demo bank / Demo-Bank
+        - Enable Banking – ING (DE)
+        - Enable Banking – other bank / andere Bank (please name it below / bitte unten nennen)
+        - None / keine
+    validations:
+      required: true
+  - type: dropdown
+    id: setup
+    attributes:
+      label: How do you run Münzwerk? / Wie läuft Münzwerk bei dir?
+      options:
+        - Docker on a Raspberry Pi
+        - Docker on another machine / auf einem anderen Rechner
+        - Locally with uvicorn / lokal mit uvicorn
+        - Demo file (dist/demo.html)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version (commit) / Stand (Commit)
+      description: "`git rev-parse --short HEAD`"
+      placeholder: "e.g. a1b2c3d"
+  - type: input
+    id: device
+    attributes:
+      label: Device and browser / Gerät und Browser
+      placeholder: "e.g. iPhone 15, iOS 26, home-screen app"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs (redacted!) / Protokoll (geschwärzt!)
+      description: "`docker logs haushaltsbuch --tail 100` – remove anything personal first. / vorher alles Persönliche entfernen."
+      render: text
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy / Datenschutz
+      options:
+        - label: I removed all real bank data and personal information from this report. / Ich habe alle echten Bankdaten und persönlichen Angaben entfernt.
+          required: true

@@ -1,0 +1,2 @@
+# Shell-Skripte laufen auf dem Pi und brauchen LF-Zeilenenden
+*.sh text eol=lf

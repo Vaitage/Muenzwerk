@@ -1,0 +1,11 @@
+# Echte Daten und Schlüssel gehören niemals ins Repository.
+.env
+data/
+*.db
+*.db-*
+*.pem
+
+__pycache__/
+.pytest_cache/
+dist/
+.venv/

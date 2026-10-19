@@ -1,0 +1,51 @@
+name: Bank compatibility / Bank-Erfahrung
+description: Report whether Münzwerk works with your bank via Enable Banking. / Berichten, ob Münzwerk mit deiner Bank funktioniert.
+labels: ["bank"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Münzwerk has only been tested with ING Germany. Reports about other banks help everyone.
+        **Only describe behaviour – never post IBANs, amounts, payees, balances or raw API responses.**
+
+        Münzwerk ist bisher nur mit der ING Deutschland getestet. Berichte zu anderen Banken helfen allen.
+        **Nur das Verhalten beschreiben – keine IBANs, Beträge, Empfänger, Kontostände oder Rohdaten.**
+  - type: input
+    id: bank
+    attributes:
+      label: Bank and country / Bank und Land
+      placeholder: "e.g. DKB, DE"
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result / Ergebnis
+      options:
+        - Works / Funktioniert
+        - Works with problems / Funktioniert mit Problemen
+        - Doesn't work / Funktioniert nicht
+    validations:
+      required: true
+  - type: checkboxes
+    id: what
+    attributes:
+      label: What works? / Was klappt?
+      options:
+        - label: Connecting / Verbinden
+        - label: Booked transactions / Gebuchte Umsätze
+        - label: Pending transactions / Vorgemerkte Umsätze
+        - label: Balances / Kontostände
+        - label: Savings or brokerage accounts / Spar- oder Depotkonten
+  - type: textarea
+    id: details
+    attributes:
+      label: Details (no personal data) / Einzelheiten (ohne persönliche Daten)
+      description: Error messages, how long the access is valid, anything unusual. / Fehlermeldungen, Gültigkeit der Freigabe, Auffälligkeiten.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy / Datenschutz
+      options:
+        - label: I removed all real bank data and personal information. / Ich habe alle echten Bankdaten und persönlichen Angaben entfernt.
+          required: true

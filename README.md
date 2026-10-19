@@ -1,0 +1,240 @@
+# Münzwerk
+
+**A self-hosted household budget app.** Münzwerk fetches the transactions of your
+bank account automatically (PSD2 via [Enable Banking](https://enablebanking.com)),
+sorts them into categories, detects fixed costs and tells you how much money is
+left until the end of the month. It runs on your own small server – for example
+a Raspberry Pi at home – and installs on your phone's home screen like an app.
+
+🇩🇪 [Deutsche Fassung](README.de.md)
+
+> [!IMPORTANT]
+> **Hobby project – use at your own risk.**
+> Münzwerk is a private hobby project, maintained in spare time. It is provided
+> "as is", **without any warranty** (see sections 15 and 16 of the [license](LICENSE)).
+> Amounts, categories and forecasts may be wrong, and **nothing in this app is
+> financial, tax or legal advice**.
+> Münzwerk is **not affiliated with, endorsed or supported by** ING, Enable Banking
+> or any other bank or provider. Their names are only used to describe compatibility.
+> To connect a real bank you need **your own Enable Banking account and key**; you are
+> responsible for your data and for following the terms of your bank and of Enable Banking.
+
+## Screenshots
+
+Taken from the demo with made-up data.
+
+| Overview | Forecast | Transactions |
+|:-:|:-:|:-:|
+| <img src="docs/images/01-overview.png" width="240" alt="Overview with money left and daily budget"> | <img src="docs/images/02-forecast.png" width="240" alt="Forecast for the end of the month"> | <img src="docs/images/03-transactions.png" width="240" alt="List of transactions"> |
+| **Categorize** | **Search** | **Statistics (month)** |
+| <img src="docs/images/04-categorize.png" width="240" alt="Assigning a payment to a category"> | <img src="docs/images/05-search.png" width="240" alt="Search for Amazon with totals"> | <img src="docs/images/06-stats-month.png" width="240" alt="Statistics for a month"> |
+| **Statistics (year)** | **Wealth** | **Loan** |
+| <img src="docs/images/07-stats-year.png" width="240" alt="Statistics for a year with bars per month"> | <img src="docs/images/08-wealth.png" width="240" alt="Net worth overview"> | <img src="docs/images/09-loan.png" width="240" alt="Loan with repayment plan"> |
+| **Fixed costs** | **Light mode** | |
+| <img src="docs/images/10-fixed-costs.png" width="240" alt="Detected fixed costs in the settings"> | <img src="docs/images/11-overview-light.png" width="240" alt="Overview in light mode"> | |
+
+## Features
+
+- **Automatic categories** – rules like "REWE → Groceries". About 45 starter rules
+  for common (mostly German) shops and payees are included.
+- **Learns as you go** – payments without a matching rule wait under *Categorize*.
+  Assign one and Münzwerk remembers the payee, sorts similar open payments right away
+  and recognizes them in future fetches. The last 20 assignments can be undone.
+- **Salary for next month** – income in categories marked *counts for next month*
+  (default: salary) counts towards the following month from a day you choose
+  (default: the 15th). Single transactions can also be moved by hand.
+- **Fixed-cost detection** – payments to the same payee in at least two months,
+  at most twice a month and within 30 % of each other count as fixed costs
+  (or regular income). You can correct this per payee.
+- **Overview** – money left until the end of the month (upcoming fixed costs
+  already deducted), a daily budget with a preview for the next days, a forecast
+  for the end of the month and a breakdown of income, fixed, variable and large
+  expenses, savings and surplus.
+- **Pending transactions** – card payments the bank has not booked yet show up
+  immediately (greyed out) and already count towards the budget. When the booking
+  arrives it replaces the pending entry and keeps your category.
+- **Statistics** – month, year or everything; income vs. expenses, comparison with
+  the previous period, savings over time, expenses by category or by fixed cost.
+- **Wealth** – current accounts, savings, brokerage accounts and loans with net
+  worth over time. Balances the bank provides come in automatically; everything
+  else you enter now and then, and Münzwerk projects it from your transfers.
+  Loans are calculated with a repayment plan (interest, debt-free date).
+- **Search** – payee, reference, category, amount (e.g. `39.95`) or date, with totals
+  per month, year or overall.
+- **Bank access monitoring** – PSD2 access expires after 90–180 days. Münzwerk shows
+  when, warns a week ahead and offers *Reconnect*.
+- **Passkey sign-in** – Face ID / fingerprint, locks itself after 15 minutes.
+- **German and English** – follows your device language and can be switched under *More*.
+
+## How it works
+
+```
+ Phone (home-screen web app)
+        │  HTTPS, only inside your Tailscale network
+        ▼
+ Your server (e.g. Raspberry Pi) ── Docker: FastAPI + SQLite
+        │  PSD2, read-only
+        ▼
+ Enable Banking ── your bank
+```
+
+- **Backend:** Python, FastAPI, SQLite (`app/`)
+- **Frontend:** plain HTML/CSS/JavaScript without a build step (`web/`);
+  the calculations run in the browser (`web/analytics.js`)
+- **Bank access:** pluggable via `BANK_PROVIDER` (`demo`, `enablebanking`, `none`), see `app/bank/`
+
+Münzwerk has only been tested with **ING Germany** so far. Other banks supported by
+Enable Banking may work but can deliver data slightly differently – reports are welcome.
+
+## Try the demo
+
+The quickest way to look around is the demo, which runs completely in the browser
+with made-up data:
+
+```bash
+python tools/build_demo.py      # creates dist/demo.html
+```
+
+Or run the server locally with the demo bank:
+
+```bash
+pip install -r requirements.txt
+HAUSHALTSBUCH_AUTH=0 uvicorn app.main:app --reload
+```
+
+Then open http://localhost:8000 and connect the demo bank under *More*.
+(`HAUSHALTSBUCH_AUTH=0` switches off the passkey sign-in – for local testing only.)
+
+## Installation
+
+You need a small always-on Linux machine (a Raspberry Pi 4 is plenty),
+[Docker](https://docs.docker.com/engine/install/) and
+[Tailscale](https://tailscale.com) on the server and on your phone.
+
+```bash
+git clone https://github.com/Vaitage/muenzwerk.git
+cd muenzwerk
+cp .env.example .env            # then edit it, see below
+docker compose up -d --build
+```
+
+The container only listens on `127.0.0.1:8000`. Make it reachable for your own
+devices with HTTPS through Tailscale:
+
+```bash
+sudo tailscale serve --bg 8000
+```
+
+Never use `tailscale funnel` – that would put your finances on the public internet.
+Open the `https://<machine>.<your-tailnet>.ts.net` address on your phone, set up
+a passkey and add the page to your home screen. Setting up the first passkey asks for a
+**setup code**; it is printed in the app's log (`docker logs haushaltsbuch`) or shown with
+`docker exec haushaltsbuch python -m app.auth code`.
+
+### Connecting your bank (Enable Banking)
+
+1. Create an account at [Enable Banking](https://enablebanking.com) and, in the
+   control panel, an application with the environment *Production*. Linking your
+   own accounts in the free *restricted* mode is enough for personal use.
+2. Enter `https://<your-address>/api/bank/callback` as redirect URL.
+3. Put the downloaded private key into `data/enablebanking.pem`.
+4. In `.env`: `BANK_PROVIDER=enablebanking`, `ENABLEBANKING_APP_ID=…`, `PUBLIC_URL=…`,
+   and your bank's name and country as listed by Enable Banking.
+5. Restart (`docker compose up -d`), tap *Connect* under *More* and confirm with your bank.
+
+Access is read-only: Münzwerk can read transactions and balances but cannot move money,
+and neither Münzwerk nor Enable Banking ever see your online banking password.
+
+### Configuration (`.env`)
+
+| Variable | Meaning |
+|---|---|
+| `DEFAULT_LANGUAGE` | `en` or `de` – language of the default categories created on first start |
+| `BANK_PROVIDER` | `demo`, `enablebanking` or `none` |
+| `PUBLIC_URL` | address the app is reachable at (for the redirect from the bank) |
+| `ALLOWED_HOSTS` | host names the app answers to, e.g. `localhost,127.0.0.1,*.ts.net` |
+| `SYNC_INTERVAL_HOURS` | automatic fetch interval (default 6, `0` = off) |
+| `ENABLEBANKING_APP_ID`, `ENABLEBANKING_KEY_FILE` | your Enable Banking application |
+| `ENABLEBANKING_BANK`, `ENABLEBANKING_COUNTRY` | e.g. `ING` / `DE` |
+| `AUTH_IDLE_MINUTES`, `AUTH_MAX_HOURS` | lock after inactivity (default 15 min) / at the latest (12 h) |
+
+Lost all passkeys? Run `docker exec haushaltsbuch python -m app.auth zuruecksetzen`,
+then create a new one in the app with the setup code it prints.
+Lost a device? Delete its passkey under *More → Sign-in* – that also signs out every
+other device. *Sign out other devices* does the same without deleting a passkey.
+
+### Updates from the app (optional)
+
+Update Münzwerk from your phone instead of logging into the server:
+
+```bash
+bash tools/pi/updates-einrichten.sh https://github.com/<you>/muenzwerk
+```
+
+This adds `UPDATES_IN_APP=1` to the `.env` of that installation. Under *More → Updates* the app
+then shows the installed version, whether a newer one is available on GitHub (checked hourly,
+with the list of changes) and an *Update now* button. Nothing is installed automatically.
+
+The app itself never touches the server: it only leaves a one-word request in `data/update/`,
+which a small cron job on the Pi picks up within a minute. That job only takes fast-forwards of
+`main`; if the new version doesn't build or the app doesn't start, it goes back to the previous one.
+For a private fork the setup creates a read-only SSH key, which you add once as a *deploy key*
+(without write access) in the repository settings. Log: `~/kontor-update.log`; turn it off with
+`crontab -e`.
+
+### Backups
+
+`tools/backup/` contains example scripts for encrypted nightly backups of `data/`
+and `.env` (encrypted on the server for a certificate whose private key only lives on
+your PC). Back up `data/` one way or another – it holds your database and bank key.
+
+## Security
+
+- **Not on the internet:** the container listens on `127.0.0.1` only; access is through
+  Tailscale from your own devices.
+- **Read-only bank access** via PSD2; the bank redirect is checked with a random state.
+- **Untrusted text is escaped:** payee and reference come from strangers (anyone can send
+  you 1 cent with any text). Everything is escaped before display.
+- **Host check** against DNS rebinding (`ALLOWED_HOSTS`) and a custom header against CSRF.
+- **Security headers:** strict Content-Security-Policy, no caching of financial data.
+- **Passkey sign-in:** without it, the API returns no data. The first passkey needs the
+  one-time setup code from the server log, further ones can only be added after signing in.
+  Deleting a passkey ends all other sessions; each sign-in uses its own one-time challenge.
+- **Files:** the database is readable only by the app user; the container doesn't run as root.
+- **Not encrypted at rest:** whoever takes the SD card can read the database. Backups are encrypted.
+
+Found a vulnerability? Please report it privately, see [SECURITY.md](SECURITY.md).
+
+## Development
+
+```bash
+pip install -r requirements.txt pytest
+pytest                                  # server
+node --test tests/*.test.mjs            # calculations and translations
+python tools/build_demo.py              # demo as a single HTML file
+python tools/screenshots.py en          # README images (needs Playwright)
+```
+
+```
+app/
+  main.py          web server (FastAPI) and API
+  db.py            SQLite database and migrations
+  defaults.py      default categories (de/en), starter rules, settings
+  ledger.py        categorizing, budget month, import
+  sync.py          fetching and monitoring bank access
+  accounts.py      wealth: accounts and balances
+  auth.py          passkey sign-in (WebAuthn)
+  bank/            demo.py, enablebanking.py
+web/               the app (HTML, CSS, JavaScript), i18n.js for translations
+tools/             demo build, screenshots, Raspberry Pi and backup scripts
+tests/             automated tests
+```
+
+Code comments and parts of the scripts are in German, since this started as a
+personal German project. English contributions are very welcome – see
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+[GNU Affero General Public License v3.0](LICENSE). If you run a modified version
+for other people over a network, you have to offer them its source code.

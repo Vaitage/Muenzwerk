@@ -1,0 +1,16 @@
+services:
+  haushaltsbuch:
+    build: .
+    # Mehrere Installationen auf einem Pi: CONTAINER_NAME und PORT in der .env
+    container_name: ${CONTAINER_NAME:-haushaltsbuch}
+    restart: unless-stopped
+    env_file: .env
+    # Deutsche Zeit, sonst rechnet die App mit UTC ("heute", Abrufzeiten)
+    environment:
+      TZ: Europe/Berlin
+    volumes:
+      - ./data:/data
+    # Nur lokal erreichbar. Von außen kommt man über Tailscale (siehe README),
+    # nicht über eine Portfreigabe im Router.
+    ports:
+      - "127.0.0.1:${PORT:-8000}:8000"

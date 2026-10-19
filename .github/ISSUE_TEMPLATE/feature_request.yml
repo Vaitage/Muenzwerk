@@ -1,0 +1,37 @@
+name: Feature request / Idee vorschlagen
+description: Suggest an idea or improvement. / Eine Idee oder Verbesserung vorschlagen.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea! Münzwerk is a small hobby project, so not every wish can be built –
+        but good ideas are always welcome. Please don't include real bank data.
+
+        Danke für die Idee! Münzwerk ist ein kleines Hobbyprojekt, nicht jeder Wunsch lässt sich
+        umsetzen – gute Ideen sind trotzdem immer willkommen. Bitte keine echten Bankdaten angeben.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would it solve? / Welches Problem löst es?
+      placeholder: "I always have to … / Ich muss jedes Mal …"
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea / Deine Idee
+      description: How should it work? Sketches with made-up data are welcome. / Wie soll es funktionieren? Skizzen mit erfundenen Daten sind willkommen.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives / Alternativen
+      description: Other ways you considered or currently use. / Andere Wege, die du erwogen hast oder heute nutzt.
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contribution / Mithelfen
+      options:
+        - label: I'd like to help build this. / Ich würde gern beim Umsetzen helfen.
