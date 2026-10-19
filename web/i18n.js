@@ -376,6 +376,8 @@
     "Regel gelöscht": "Rule deleted",
     "Sprache": "Language",
     "Über Münzwerk": "About Münzwerk",
+    "Version": "Version",
+    "Auf dem Pi läuft schon Version {v}. Schließe die App ganz und öffne sie neu.": "The Pi already runs version {v}. Close the app completely and open it again.",
     "Münzwerk ist ein privates Hobbyprojekt und Open Source (AGPL-3.0). Es gibt keine Gewähr, dass Beträge, Kategorien oder Prognosen stimmen, und nichts davon ist Finanzberatung. Münzwerk steht in keiner Verbindung zu deiner Bank oder zu Enable Banking.": "Münzwerk is a private hobby project and open source (AGPL-3.0). There is no guarantee that amounts, categories or forecasts are correct, and none of it is financial advice. Münzwerk is not affiliated with your bank or with Enable Banking.",
 
     // --- Anmeldung (auth.js)

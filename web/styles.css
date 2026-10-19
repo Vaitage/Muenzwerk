@@ -602,3 +602,4 @@ body.locked .tabbar { display: none; }
 .update-busy .spinner { margin-top: 3px; flex: none; color: var(--accent); }
 .update-busy b { display: block; }
 .update-busy span:not(.spinner) { display: block; font-size: 14px; color: var(--muted); margin-top: 2px; }
+.note.warn-text { color: var(--warn, var(--danger)); font-weight: 600; }

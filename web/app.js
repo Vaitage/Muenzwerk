@@ -1,5 +1,8 @@
 (() => {
   "use strict";
+  // Version dieser App-Dateien (gleich wie __version__ in app/__init__.py). Weicht die
+  // Version des Servers ab, zeigt das Handy noch eine zwischengespeicherte Fassung.
+  const APP_VERSION = "1.0.0";
   const A = window.Analytics;
   const { t, tn, ord, locale } = window.I18N;
 
@@ -51,11 +54,13 @@
   const openCount = () => state.transactions.filter((t) => t.category_id == null).length;
 
   async function loadAll() {
-    const [cats, txs, ovs, settings, bank, accounts, undo] = await Promise.all([
+    const [cats, txs, ovs, settings, bank, accounts, undo, server] = await Promise.all([
       API.categories(), API.transactions(), API.overrides(), API.settings(), API.bankStatus(), API.accounts(),
       API.undoStatus ? API.undoStatus() : { count: 0 },
+      API.version ? API.version() : null,
     ]);
     state.undoCount = undo.count;
+    state.serverVersion = server?.version || null;
     state.accounts = accounts;
     state.categories = cats;
     state.transactions = txs;
@@ -1328,8 +1333,12 @@
 
   // Hinweis: Hobbyprojekt, keine Gewähr, keine Finanzberatung
   function aboutCard() {
+    const server = state.serverVersion;
+    const stale = server && server !== APP_VERSION;
     return `<section class="card about">
         <h2>${t("Über Münzwerk")}</h2>
+        <div class="line-row"><span>${t("Version")}</span><span>${esc(APP_VERSION)}</span></div>
+        ${stale ? `<p class="note warn-text">${t("Auf dem Pi läuft schon Version {v}. Schließe die App ganz und öffne sie neu.", { v: esc(server) })}</p>` : ""}
         <p class="note" style="margin-top:0">${t("Münzwerk ist ein privates Hobbyprojekt und Open Source (AGPL-3.0). Es gibt keine Gewähr, dass Beträge, Kategorien oder Prognosen stimmen, und nichts davon ist Finanzberatung. Münzwerk steht in keiner Verbindung zu deiner Bank oder zu Enable Banking.")}</p>
         <p class="note"><a href="https://github.com/Vaitage/muenzwerk" target="_blank" rel="noopener">github.com/Vaitage/muenzwerk</a></p>
       </section>`;

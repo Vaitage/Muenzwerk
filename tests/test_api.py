@@ -183,3 +183,17 @@ def test_eingaben_werden_geprueft(tmp_path, monkeypatch):
         assert client.get("/api/summary", params={"month": "Oktober"}).status_code == 422
         assert client.get("/api/transactions", params={"month": "2026-1"}).status_code == 422
         assert client.get("/api/transactions", params={"month": "2026-10"}).status_code == 200
+
+
+def test_version_gleich_in_server_und_app(tmp_path, monkeypatch):
+    import re
+    from pathlib import Path
+
+    from app import __version__
+    app_js = (Path(__file__).resolve().parent.parent / "web" / "app.js").read_text(encoding="utf-8")
+    assert re.search(r'const APP_VERSION = "([^"]+)"', app_js).group(1) == __version__
+    with make_client(tmp_path, monkeypatch) as client:
+        assert client.get("/api/version").json() == {"version": __version__}
+        # App-Dateien: nachfragen statt alte Fassung behalten; Finanzdaten nie speichern
+        assert client.get("/app.js").headers["cache-control"] == "no-cache"
+        assert client.get("/api/version").headers["cache-control"] == "no-store"

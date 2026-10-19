@@ -56,6 +56,7 @@ window.API = (() => {
     undo: () => req("POST", "/api/undo"),
     // Bereich „Updates“ – nur wenn die Installation das erlaubt (sonst 404 -> null)
     updates: () => req("GET", "/api/updates").catch(() => null),
+    version: () => req("GET", "/api/version").catch(() => null),
     updateAction: (aktion) => req("POST", "/api/updates", { aktion }),
   };
 })();

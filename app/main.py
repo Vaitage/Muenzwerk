@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, Field
 
-from . import accounts, auth, db, ledger, sync, updates
+from . import __version__, accounts, auth, db, ledger, sync, updates
 from .bank import BankNotConfigured, get_provider
 
 log = logging.getLogger("haushaltsbuch")
@@ -104,6 +104,10 @@ async def protect(request: Request, call_next):
     if path.startswith("/api/"):
         # Finanzdaten nicht im Browser-Cache auf dem Handy ablegen
         response.headers["Cache-Control"] = "no-store"
+    else:
+        # App-Dateien bei jedem Öffnen kurz nachfragen (ETag, meist nur "unverändert").
+        # Ohne diese Angabe behält Safari als Homescreen-App alte Fassungen tagelang.
+        response.headers.setdefault("Cache-Control", "no-cache")
     return response
 
 
@@ -380,6 +384,11 @@ def _put_setting(conn, key: str, value) -> None:
         "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
         (key, str(value)),
     )
+
+
+@app.get("/api/version")
+def version():
+    return {"version": __version__}
 
 
 @app.get("/api/settings")
