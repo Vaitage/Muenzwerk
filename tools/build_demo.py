@@ -56,6 +56,7 @@ def main() -> None:
     icon_png = base64.b64encode((web / "icon-180.png").read_bytes()).decode()
     scripts = "\n".join([
         "window.DEMO_DATA = " + json.dumps(data, ensure_ascii=False) + ";",
+        (web / "theme.js").read_text(encoding="utf-8"),
         (web / "icons.js").read_text(encoding="utf-8"),
         (web / "i18n.js").read_text(encoding="utf-8"),
         (web / "analytics.js").read_text(encoding="utf-8"),
@@ -65,6 +66,7 @@ def main() -> None:
 
     html = html.replace('<link rel="stylesheet" href="styles.css">', f"<style>\n{css}\n</style>")
     html = html.replace('<link rel="manifest" href="manifest.webmanifest">\n', "")
+    html = html.replace('  <script src="theme.js"></script>\n', "")   # steckt unten im Skript-Block
     html = html.replace('href="icon-180.png"', f'href="data:image/png;base64,{icon_png}"')
     html = html.replace('<link rel="icon" type="image/png" href="icon-192.png">', f'<link rel="icon" type="image/png" href="data:image/png;base64,{icon_png}">')
     html = html.replace(

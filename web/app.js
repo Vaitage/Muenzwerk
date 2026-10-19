@@ -2,7 +2,7 @@
   "use strict";
   // Version dieser App-Dateien (gleich wie __version__ in app/__init__.py). Weicht die
   // Version des Servers ab, zeigt das Handy noch eine zwischengespeicherte Fassung.
-  const APP_VERSION = "1.1.0";
+  const APP_VERSION = "1.2.0";
   const A = window.Analytics;
   const { t, tn, ord, locale } = window.I18N;
 
@@ -1201,6 +1201,7 @@
         </div>
         ${bank.setup ? setupHint(bank.setup) : ""}
       </section>
+      ${aboutCard()}
 
       <section class="card">
         <h2>${t("Monat")}</h2>
@@ -1222,7 +1223,7 @@
       ${window.Auth ? window.Auth.settingsHtml() : ""}
       ${updatesCard()}
       ${languageCard()}
-      ${aboutCard()}`;
+      ${themeCard()}`;
   }
 
   // Mehr → Kategorien: Antippen öffnet die Kategorie (Ersparnis/Folgemonat, löschen)
@@ -1403,6 +1404,20 @@
       </section>`;
   }
 
+  // Design: Automatisch (wie das Gerät), Hell, Dunkel – pro Gerät (web/theme.js)
+  function themeCard() {
+    if (!window.Theme) return "";
+    const cur = window.Theme.get();
+    const label = { auto: t("Automatisch"), light: t("Hell"), dark: t("Dunkel") };
+    return `<section class="card">
+        <h2>${t("Design")}</h2>
+        <div class="seg" role="group" aria-label="${t("Design")}">
+          ${window.Theme.choices.map((c) => `<button data-theme-choice="${c}" aria-pressed="${c === cur}">${label[c]}</button>`).join("")}
+        </div>
+        <p class="note">${t("Automatisch folgt der Einstellung des Geräts.")}</p>
+      </section>`;
+  }
+
   // Hinweis: Hobbyprojekt, keine Gewähr, keine Finanzberatung
   function aboutCard() {
     const server = state.serverVersion;
@@ -1510,6 +1525,8 @@
 
     const lb = e.target.closest("[data-lang]");
     if (lb) { window.I18N.setLang(lb.dataset.lang); return; }
+    const th = e.target.closest("[data-theme-choice]");
+    if (th) { window.Theme.set(th.dataset.themeChoice); return render(); }
 
     if (act === "clear-search") {
       state.txQuery = "";
