@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+import sqlite3
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -46,8 +47,21 @@ async def sync_loop() -> None:
             log.exception("Automatischer Abruf fehlgeschlagen")
 
 
+def timezone_problem() -> str | None:
+    """Meldung, wenn TZ gesetzt ist, aber nicht wirkt (fehlende Zeitzonendaten)."""
+    tz = os.environ.get("TZ", "").strip()
+    if not tz or tz.upper() in ("UTC", "ETC/UTC", "GMT"):
+        return None
+    if Path("/usr/share/zoneinfo", tz.lstrip(":")).is_file():
+        return None
+    return (f"TZ={tz} ist gesetzt, aber die Zeitzonendaten fehlen – die App rechnet in UTC. "
+            "Container neu bauen (Dockerfile installiert tzdata).")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if problem := timezone_problem():
+        log.warning(problem)
     with db.session() as conn:
         db.init(conn)
         auth.announce_setup_code(conn)
@@ -171,8 +185,8 @@ def create_category(body: CategoryIn, conn=Depends(get_db)):
             "INSERT INTO categories (name, kind, icon, sort, shift_next_month, is_savings) VALUES (?,?,?,?,?,?)",
             (body.name.strip(), body.kind, body.icon, sort, int(body.shift_next_month), int(body.is_savings)),
         )
-    except Exception:
-        raise HTTPException(409, "Diese Kategorie gibt es schon.")
+    except sqlite3.IntegrityError as exc:   # gleicher Name und gleiche Art gibt es schon
+        raise HTTPException(409, "Diese Kategorie gibt es schon.") from exc
     return _category(conn.execute("SELECT * FROM categories WHERE id = ?", (cur.lastrowid,)).fetchone())
 
 
@@ -204,11 +218,6 @@ def delete_category(cat_id: int, conn=Depends(get_db)):
 # Regeln
 # ---------------------------------------------------------------------------
 
-class RuleIn(BaseModel):
-    pattern: str = Field(min_length=2, max_length=80)
-    category_id: int
-
-
 @app.get("/api/rules")
 def list_rules(conn=Depends(get_db)):
     rows = conn.execute(
@@ -217,14 +226,6 @@ def list_rules(conn=Depends(get_db)):
     ).fetchall()
     return [dict(r) for r in rows]
 
-
-@app.post("/api/rules", status_code=201)
-def create_rule(body: RuleIn, conn=Depends(get_db)):
-    conn.execute(
-        "INSERT OR IGNORE INTO rules (pattern, category_id, source) VALUES (?, ?, 'user')",
-        (ledger.normalize(body.pattern), body.category_id),
-    )
-    return {"ok": True}
 
 
 @app.delete("/api/rules/{rule_id}", status_code=204)
@@ -318,8 +319,8 @@ def update_transaction(tx_id: str, body: TxPatch, conn=Depends(get_db)):
             ledger.set_budget_month(conn, tx_id, None)
         elif body.budget_month:
             ledger.set_budget_month(conn, tx_id, body.budget_month)
-    except KeyError:
-        raise HTTPException(404)
+    except KeyError as exc:
+        raise HTTPException(404) from exc
     row = conn.execute(TX_SELECT + "WHERE t.id = ?", (tx_id,)).fetchone()
     return {**_tx(row), **extra}
 
@@ -335,38 +336,6 @@ def undo(conn=Depends(get_db)):
     if result is None:
         raise HTTPException(409, "Nichts mehr rückgängig zu machen.")
     return result
-
-
-# ---------------------------------------------------------------------------
-# Übersicht
-# ---------------------------------------------------------------------------
-
-@app.get("/api/summary")
-def summary(month: str = Query(pattern=MONTH), conn=Depends(get_db)):
-    totals = conn.execute(
-        "SELECT COALESCE(SUM(CASE WHEN amount_cents > 0 THEN amount_cents END), 0) AS income, "
-        "COALESCE(SUM(CASE WHEN amount_cents < 0 THEN amount_cents END), 0) AS expense "
-        "FROM transactions WHERE budget_month = ?",
-        (month,),
-    ).fetchone()
-    by_cat = conn.execute(
-        "SELECT c.id, COALESCE(c.name, 'Nicht zugeordnet') AS name, COALESCE(c.icon, 'help') AS icon, "
-        "SUM(t.amount_cents) AS total, COUNT(*) AS count "
-        "FROM transactions t LEFT JOIN categories c ON c.id = t.category_id "
-        "WHERE t.budget_month = ? AND t.amount_cents < 0 GROUP BY c.id ORDER BY total ASC",
-        (month,),
-    ).fetchall()
-    open_count = conn.execute("SELECT COUNT(*) FROM transactions WHERE category_id IS NULL").fetchone()[0]
-    months = [r[0] for r in conn.execute("SELECT DISTINCT budget_month FROM transactions ORDER BY 1")]
-    return {
-        "month": month,
-        "income_cents": totals["income"],
-        "expense_cents": totals["expense"],
-        "balance_cents": totals["income"] + totals["expense"],
-        "by_category": [dict(r) for r in by_cat],
-        "uncategorized_count": open_count,
-        "months": months,
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -424,7 +393,7 @@ def bank_connect(request: Request, conn=Depends(get_db)):
     try:
         start = get_provider().start_connect(f"{base}/api/bank/callback")
     except BankNotConfigured as exc:
-        raise HTTPException(409, str(exc) or "Die Bank ist noch nicht eingerichtet.")
+        raise HTTPException(409, str(exc) or "Die Bank ist noch nicht eingerichtet.") from exc
     conn.execute(
         "INSERT INTO settings (key, value) VALUES ('pending_state', ?) "
         "ON CONFLICT(key) DO UPDATE SET value = excluded.value",

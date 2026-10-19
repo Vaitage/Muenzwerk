@@ -5,6 +5,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     HAUSHALTSBUCH_DB=/data/haushaltsbuch.db
 
+# Zeitzonendaten: Ohne sie ignoriert der Container TZ=Europe/Berlin und rechnet in
+# UTC – "heute" würde dann erst um 2 Uhr nachts umspringen.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends tzdata \
+ && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

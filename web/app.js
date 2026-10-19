@@ -2,7 +2,7 @@
   "use strict";
   // Version dieser App-Dateien (gleich wie __version__ in app/__init__.py). Weicht die
   // Version des Servers ab, zeigt das Handy noch eine zwischengespeicherte Fassung.
-  const APP_VERSION = "1.0.0";
+  const APP_VERSION = "1.1.0";
   const A = window.Analytics;
   const { t, tn, ord, locale } = window.I18N;
 
@@ -39,6 +39,7 @@
     statsMonth: thisMonth,
     statsYear: thisMonth.slice(0, 4),
     settingsKind: "expense",
+    settingsPage: null,       // Unterseite von „Mehr“ (siehe SETTINGS_PAGES)
     txFilter: "all",          // "all" oder "open" (noch zuzuordnen)
     txQuery: "",              // Suchbegriff in Umsätze
     txRange: "year",          // Zeitraum der Suche: "month", "year", "all"
@@ -317,8 +318,10 @@
   function renderTop() {
     const tab = TABS.find((t) => t.id === state.view);
     const withMonth = state.view === "overview" || (state.view === "transactions" && state.txFilter === "all" && !state.txQuery.trim());
+    const sub = state.view === "settings" && SETTINGS_PAGES[state.settingsPage];
     $("#top").innerHTML = `
-      <h1>${tab.title}</h1>
+      ${sub ? `<button class="top-back" data-settings-page="">${icon("chevronLeft")}${tab.label}</button>` : ""}
+      <h1>${sub ? sub() : tab.title}</h1>
       ${withMonth ? `
         <div class="month-switch">
           <button class="icon-btn" data-month="-1" aria-label="${t("Vormonat")}" ${state.month <= state.ctx.firstMonth ? "disabled" : ""}>${icon("chevronLeft")}</button>
@@ -774,8 +777,10 @@
       return `${d.gain >= 0 ? "+" : ""}${fmt0(d.gain)} (${decimal(d.gainPct * 100, 1)} %) ${t("seit {date}", { date: dateDE(d.since) })}${d.stale ? ` · ${t("Wert aktualisieren")}` : ""}`;
     }
     if (a.type === "savings" && a.monthlyIn) return t("zuletzt {amount} im Monat", { amount: `${a.monthlyIn > 0 ? "+" : ""}${fmt0(a.monthlyIn)}` });
-    if (a.estimated && a.lastValueDate) return t("fortgeschrieben seit {date}", { date: dateDE(a.lastValueDate) }) + (a.pendingCents ? `, ${t("inkl. {amount} vorgemerkt", { amount: fmt(a.pendingCents) })}` : "");
-    if (a.pendingCents) return `${t("von der Bank")}, ${t("inkl. {amount} vorgemerkt", { amount: fmt(a.pendingCents) })}`;
+    // Vorgemerkte Ausgaben ohne Minus, wie in der Übersicht; Eingänge mit "+"
+    const pending = a.pendingCents ? t("inkl. {amount} vorgemerkt", { amount: a.pendingCents < 0 ? fmt(-a.pendingCents) : `+${fmt(a.pendingCents)}` }) : "";
+    if (a.estimated && a.lastValueDate) return t("fortgeschrieben seit {date}", { date: dateDE(a.lastValueDate) }) + (pending ? `, ${pending}` : "");
+    if (pending) return `${t("von der Bank")}, ${pending}`;
     return a.bank ? t("von der Bank") : t("von Hand");
   }
 
@@ -1146,17 +1151,26 @@
     if (updatesInfo?.anfrage || updatesInfo?.status?.laeuft) watchUpdates();
   }
 
+  // Unterseiten von „Mehr“: null (Hauptseite), "categories", "rules", "fixed"
+  const SETTINGS_PAGES = {
+    categories: () => t("Kategorien"),
+    rules: () => t("Gelernte Regeln"),
+    fixed: () => t("Fixkosten"),
+  };
+  function openSettingsPage(page) {
+    state.settingsPage = page;
+    window.scrollTo(0, 0);
+    render();
+  }
+
   function viewSettings() {
+    if (state.settingsPage === "categories") return settingsCategories();
+    if (state.settingsPage === "rules") return settingsRules();
+    if (state.settingsPage === "fixed") return settingsFixed();
     const bank = state.bank;
     const settings = state.settings;
-    const cats = state.categories.filter((c) => c.kind === state.settingsKind);
-    const userRules = rulesCache.filter((r) => r.source === "user");
-    const starterRules = rulesCache.filter((r) => r.source !== "user");
-    const rec = A.recurringList(state.ctx);
-    const fixedExp = rec.filter((r) => r.kind === "expense" && r.fixed);
-    const otherExp = rec.filter((r) => r.kind === "expense" && !r.fixed);
-    const regInc = rec.filter((r) => r.kind === "income" && r.fixed);
-    const fixedSum = fixedExp.reduce((s, r) => s + r.amount_cents, 0);
+    const fixedSum = A.recurringList(state.ctx).filter((r) => r.kind === "expense" && r.fixed).reduce((s, r) => s + r.amount_cents, 0);
+    const userRuleCount = rulesCache.filter((r) => r.source === "user").length;
 
     const bankText = {
       none: bank.setup ? t("Noch nicht eingerichtet") : t("Noch nicht verbunden"),
@@ -1166,12 +1180,12 @@
       error: t("Fehler beim Abruf"),
     }[bank.state] || bank.state;
 
-    const recRow = (r) => `
-      <div class="row">
-        <div class="grow"><div>${esc(r.name)}</div>
-          <div class="hint">${fmt(r.amount_cents)} · ${t("meist um den {day}", { day: ord(r.day) })} · ${r.overridden ? t("von dir festgelegt") : t("erkannt")}</div></div>
-        <label class="switch"><input type="checkbox" data-fixed="${esc(r.pattern)}" data-auto="${r.auto}" ${r.fixed ? "checked" : ""}><span></span></label>
-      </div>`;
+    const navRow = (page, ic, label, value) => `
+      <button class="navrow" data-settings-page="${page}">
+        <div class="bubble">${icon(ic)}</div>
+        <div class="grow">${label}</div>
+        <span class="navrow-value">${value}</span>${icon("chevronRight")}
+      </button>`;
 
     return `
       <section class="card">
@@ -1189,14 +1203,6 @@
       </section>
 
       <section class="card">
-        <h2>${t("Fixkosten · {amount} im Monat", { amount: fmt(fixedSum) })}</h2>
-        <p class="note" style="margin-top:0">${t("Erkannt werden Zahlungen, die in mindestens zwei Monaten mit fast gleichem Betrag vorkommen. Mit dem Schalter korrigierst du die Erkennung.")}</p>
-        ${fixedExp.map(recRow).join("") || `<div class="hint">${t("Noch keine erkannt. Dafür braucht die App Umsätze aus mindestens zwei Monaten.")}</div>`}
-        ${otherExp.length ? `<details><summary>${tn(otherExp.length, "{n} weiterer wiederkehrender Empfänger", "{n} weitere wiederkehrende Empfänger")}</summary>${otherExp.map(recRow).join("")}</details>` : ""}
-        ${regInc.length ? `<h2 style="margin-top:16px">${t("Regelmäßige Einnahmen")}</h2>${regInc.map(recRow).join("")}` : ""}
-      </section>
-
-      <section class="card">
         <h2>${t("Monat")}</h2>
         <div class="row">
           <div class="grow"><div>${t("Gehalt zählt zum Folgemonat ab dem")}</div><div class="hint">${t("Gilt für Kategorien mit „Folgemonat“. Kommt das Gehalt verspätet am Monatsanfang, bleibt es im Eingangsmonat.")}</div></div>
@@ -1208,33 +1214,99 @@
         </div>
       </section>
 
-      <section class="card">
-        <h2>${t("Kategorien")}</h2>
-        <div class="seg" role="group">
-          <button data-skind="expense" aria-pressed="${state.settingsKind === "expense"}">${t("Ausgaben")}</button>
-          <button data-skind="income" aria-pressed="${state.settingsKind === "income"}">${t("Einnahmen")}</button>
-        </div>
-        ${cats.map((c) => `
-          <div class="row">
-            <div class="bubble">${icon(c.icon)}</div>
-            <div class="grow">${esc(c.name)}</div>
-            ${c.kind === "income"
-              ? `<button class="toggle-chip" data-catshift="${c.id}" aria-pressed="${c.shift_next_month}">${t("Folgemonat")}</button>`
-              : `<button class="toggle-chip" data-catsave="${c.id}" aria-pressed="${!!c.is_savings}">${t("Ersparnis")}</button>`}
-            <button class="small-del" data-delcat="${c.id}" aria-label="${t("{name} löschen", { name: esc(c.name) })}">${icon("trash")}</button>
-          </div>`).join("")}
-        <button class="btn secondary block" data-action="newcat" style="margin-top:8px">${icon("plus")} ${t("Kategorie hinzufügen")}</button>
-      </section>
-
-      <section class="card">
-        <h2>${t("Gelernte Regeln")}</h2>
-        ${userRules.length ? userRules.map(ruleRow).join("") : `<div class="hint">${t("Noch keine. Sie entstehen, wenn du eine Zahlung zuordnest und „Künftig immer so zuordnen“ an lässt.")}</div>`}
-        ${starterRules.length ? `<details><summary>${t("{n} Start-Regeln anzeigen", { n: starterRules.length })}</summary>${starterRules.map(ruleRow).join("")}</details>` : ""}
+      <section class="card nav-card">
+        ${navRow("categories", "tag", t("Kategorien"), state.categories.length)}
+        ${navRow("rules", "sparkle", t("Gelernte Regeln"), userRuleCount)}
+        ${navRow("fixed", "calendar", t("Fixkosten"), t("{amount} im Monat", { amount: fmt0(fixedSum) }))}
       </section>
       ${window.Auth ? window.Auth.settingsHtml() : ""}
       ${updatesCard()}
       ${languageCard()}
       ${aboutCard()}`;
+  }
+
+  // Mehr → Kategorien: Antippen öffnet die Kategorie (Ersparnis/Folgemonat, löschen)
+  function settingsCategories() {
+    const cats = state.categories.filter((c) => c.kind === state.settingsKind);
+    return `
+      <div class="seg" role="group">
+        <button data-skind="expense" aria-pressed="${state.settingsKind === "expense"}">${t("Ausgaben")}</button>
+        <button data-skind="income" aria-pressed="${state.settingsKind === "income"}">${t("Einnahmen")}</button>
+      </div>
+      <section class="card">
+        ${cats.map((c) => `
+          <button class="navrow" data-editcat="${c.id}">
+            <div class="bubble">${icon(c.icon)}</div>
+            <div class="grow">${esc(c.name)}</div>
+            ${c.is_savings ? `<span class="chip">${t("Ersparnis")}</span>` : ""}
+            ${c.kind === "income" && c.shift_next_month ? `<span class="chip">${t("Folgemonat")}</span>` : ""}
+            ${icon("chevronRight")}
+          </button>`).join("")}
+      </section>
+      <button class="btn secondary block" data-action="newcat">${icon("plus")} ${t("Kategorie hinzufügen")}</button>`;
+  }
+
+  function openCategoryEditSheet(cat) {
+    const income = cat.kind === "income";
+    const on = income ? !!cat.shift_next_month : !!cat.is_savings;
+    const sheet = openSheet(`
+      <div class="meta" style="margin-bottom:2px">${income ? t("Für Einnahmen") : t("Für Ausgaben")}</div>
+      <h3 class="cat-title"><span class="bubble">${icon(cat.icon)}</span>${esc(cat.name)}</h3>
+      <div class="card" style="padding:4px 16px;margin-top:12px">
+        <div class="row"><div class="grow">${income
+          ? `<div>${t("Zählt zum Folgemonat")}</div><div class="hint">${t("Wie beim Gehalt: Eingang am Monatsende gilt für den nächsten Monat")}</div>`
+          : `<div>${t("Ist eine Ersparnis")}</div><div class="hint">${t("Z. B. Überweisung aufs Sparkonto. Zählt dann nicht als Ausgabe.")}</div>`}</div>
+          <label class="switch"><input type="checkbox" id="catflag" ${on ? "checked" : ""}><span></span></label></div>
+      </div>
+      <button class="btn danger block" id="catdel">${t("Kategorie löschen")}</button>`);
+    $("#catflag", sheet).addEventListener("change", async (e) => {
+      const value = e.target.checked;
+      await API.updateCategory(cat.id, income ? { shift_next_month: value } : { is_savings: value });
+      if (!income) toast(value ? t("Zählt jetzt als Ersparnis") : t("Zählt jetzt als Ausgabe"));
+      await reload();
+    });
+    $("#catdel", sheet).addEventListener("click", () => {
+      confirmSheet(t("„{name}“ löschen?", { name: cat.name }), t("Zugeordnete Zahlungen landen wieder in „Zuordnen“. Regeln für diese Kategorie werden mit gelöscht."), t("Löschen"), async () => {
+        await API.deleteCategory(cat.id);
+        toast(t("Kategorie gelöscht"));
+        await reload();
+        viewSettingsAsync();
+      });
+    });
+  }
+
+  // Mehr → Gelernte Regeln
+  function settingsRules() {
+    const userRules = rulesCache.filter((r) => r.source === "user");
+    const starterRules = rulesCache.filter((r) => r.source !== "user");
+    return `
+      <section class="card">
+        ${userRules.length ? userRules.map(ruleRow).join("") : `<div class="hint">${t("Noch keine. Sie entstehen, wenn du eine Zahlung zuordnest und „Künftig immer so zuordnen“ an lässt.")}</div>`}
+      </section>
+      ${starterRules.length ? `<section class="card"><details><summary>${t("{n} Start-Regeln anzeigen", { n: starterRules.length })}</summary>${starterRules.map(ruleRow).join("")}</details></section>` : ""}`;
+  }
+
+  // Mehr → Fixkosten: erkannte Fixkosten und regelmäßige Einnahmen, korrigierbar
+  function settingsFixed() {
+    const rec = A.recurringList(state.ctx);
+    const fixedExp = rec.filter((r) => r.kind === "expense" && r.fixed);
+    const otherExp = rec.filter((r) => r.kind === "expense" && !r.fixed);
+    const regInc = rec.filter((r) => r.kind === "income" && r.fixed);
+    const fixedSum = fixedExp.reduce((s, r) => s + r.amount_cents, 0);
+    const recRow = (r) => `
+      <div class="row">
+        <div class="grow"><div>${esc(r.name)}</div>
+          <div class="hint">${fmt(r.amount_cents)} · ${t("meist um den {day}", { day: ord(r.day) })} · ${r.overridden ? t("von dir festgelegt") : t("erkannt")}</div></div>
+        <label class="switch"><input type="checkbox" data-fixed="${esc(r.pattern)}" data-auto="${r.auto}" ${r.fixed ? "checked" : ""}><span></span></label>
+      </div>`;
+    return `
+      <section class="card">
+        <h2>${t("Fixkosten · {amount} im Monat", { amount: fmt(fixedSum) })}</h2>
+        <p class="note" style="margin-top:0">${t("Erkannt werden Zahlungen, die in mindestens zwei Monaten mit fast gleichem Betrag vorkommen. Mit dem Schalter korrigierst du die Erkennung.")}</p>
+        ${fixedExp.map(recRow).join("") || `<div class="hint">${t("Noch keine erkannt. Dafür braucht die App Umsätze aus mindestens zwei Monaten.")}</div>`}
+        ${otherExp.length ? `<details><summary>${tn(otherExp.length, "{n} weiterer wiederkehrender Empfänger", "{n} weitere wiederkehrende Empfänger")}</summary>${otherExp.map(recRow).join("")}</details>` : ""}
+      </section>
+      ${regInc.length ? `<section class="card"><h2>${t("Regelmäßige Einnahmen")}</h2>${regInc.map(recRow).join("")}</section>` : ""}`;
   }
 
   // ------------------------------------------------------------------ Updates (nur mit UPDATES_IN_APP=1)
@@ -1391,6 +1463,7 @@
     const tab = e.target.closest("[data-tab]");
     if (tab) {
       state.view = tab.dataset.tab;
+      state.settingsPage = null;   // „Mehr“ öffnet immer die Hauptseite
       window.scrollTo(0, 0);
       render();
       if (state.view === "settings") viewSettingsAsync();
@@ -1417,7 +1490,12 @@
 
     const act = e.target.closest("[data-action]")?.dataset.action;
     if (act === "goto-inbox") { state.view = "transactions"; state.txFilter = "open"; window.scrollTo(0, 0); return render(); }
-    if (act === "goto-settings") { state.view = "settings"; render(); return viewSettingsAsync(); }
+    if (act === "goto-settings") { state.view = "settings"; state.settingsPage = null; render(); return viewSettingsAsync(); }
+
+    const sp = e.target.closest("[data-settings-page]");
+    if (sp) return openSettingsPage(sp.dataset.settingsPage || null);
+    const ec = e.target.closest("[data-editcat]");
+    if (ec) { const c = catById(Number(ec.dataset.editcat)); if (c) openCategoryEditSheet(c); return; }
     if (act === "connect") return connectBank();
     if (act === "undo") return undoLast();
     if (act === "newcat") return openCategorySheet(state.settingsKind);
@@ -1462,30 +1540,6 @@
       const next = Math.min(500000, Math.max(5000, state.settings.large_expense_cents + Number(lg.dataset.large) * 5000));
       await API.updateSettings({ large_expense_cents: next });
       return reload();
-    }
-
-    const cs = e.target.closest("[data-catshift]");
-    if (cs) {
-      await API.updateCategory(Number(cs.dataset.catshift), { shift_next_month: cs.getAttribute("aria-pressed") !== "true" });
-      return reload();
-    }
-    const csv = e.target.closest("[data-catsave]");
-    if (csv) {
-      const on = csv.getAttribute("aria-pressed") !== "true";
-      await API.updateCategory(Number(csv.dataset.catsave), { is_savings: on });
-      toast(on ? t("Zählt jetzt als Ersparnis") : t("Zählt jetzt als Ausgabe"));
-      return reload();
-    }
-
-    const dc = e.target.closest("[data-delcat]");
-    if (dc) {
-      const c = catById(Number(dc.dataset.delcat));
-      return confirmSheet(t("„{name}“ löschen?", { name: c.name }), t("Zugeordnete Zahlungen landen wieder in „Zuordnen“. Regeln für diese Kategorie werden mit gelöscht."), t("Löschen"), async () => {
-        await API.deleteCategory(c.id);
-        toast(t("Kategorie gelöscht"));
-        await reload();
-        viewSettingsAsync();
-      });
     }
 
     const dr = e.target.closest("[data-delrule]");

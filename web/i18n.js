@@ -264,6 +264,8 @@
     "„{name}“ löschen?": "Delete “{name}”?",
     "Zugeordnete Zahlungen landen wieder in „Zuordnen“. Regeln für diese Kategorie werden mit gelöscht.": "Payments in this category go back to “Categorize”. Rules for this category are deleted as well.",
     "Kategorie gelöscht": "Category deleted",
+    "Kategorie löschen": "Delete category",
+    "{amount} im Monat": "{amount} per month",
 
     // --- Statistik
     "Gesamter Zeitraum": "Entire period",

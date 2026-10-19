@@ -228,7 +228,7 @@ def test_pending_dropped_when_bank_no_longer_reports_it(conn):
 
 
 def test_pending_with_other_amount_is_not_matched(conn):
-    from datetime import date, timedelta
+    from datetime import date
     today = date.today()
     ledger.import_transactions(conn, [{"id": "p3", "booking_date": today.isoformat(), "amount_cents": -5000,
                                        "counterparty": "Hotel", "purpose": "", "pending": True}], window_start=today)

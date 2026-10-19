@@ -89,22 +89,6 @@ window.API = (() => {
       else if (d.budget_month) { t.budget_month = d.budget_month; t.budget_month_manual = true; }
       return ok({ ...view(t), also_assigned: also });
     },
-    summary: (month) => {
-      const inMonth = txs.filter((t) => t.budget_month === month);
-      const income = inMonth.filter((t) => t.amount_cents > 0).reduce((s, t) => s + t.amount_cents, 0);
-      const expense = inMonth.filter((t) => t.amount_cents < 0).reduce((s, t) => s + t.amount_cents, 0);
-      const groups = new Map();
-      for (const t of inMonth.filter((t) => t.amount_cents < 0)) {
-        const k = t.category_id ?? "none";
-        const g = groups.get(k) || { id: t.category_id, name: cat(t.category_id)?.name ?? I18N.t("Nicht zugeordnet"), icon: cat(t.category_id)?.icon ?? "help", total: 0, count: 0 };
-        g.total += t.amount_cents; g.count++; groups.set(k, g);
-      }
-      return ok({
-        month, income_cents: income, expense_cents: expense, balance_cents: income + expense,
-        by_category: [...groups.values()].sort((a, b) => a.total - b.total),
-        uncategorized_count: txs.filter((t) => t.category_id == null).length,
-      });
-    },
     settings: () => ok(settings),
     updateSettings: (d) => { Object.assign(settings, d); recompute(); return ok(settings); },
     accounts: () => ok(accounts),

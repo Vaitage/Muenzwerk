@@ -22,10 +22,6 @@ def next_month(month: str) -> str:
     return f"{year + 1:04d}-01" if mon == 12 else f"{year:04d}-{mon + 1:02d}"
 
 
-def prev_month(month: str) -> str:
-    year, mon = map(int, month.split("-"))
-    return f"{year - 1:04d}-12" if mon == 1 else f"{year:04d}-{mon - 1:02d}"
-
 
 def compute_budget_month(booking_date: date, shift_next_month: bool, shift_from_day: int) -> str:
     """Für welchen Monat zählt ein Umsatz?

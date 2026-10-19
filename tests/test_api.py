@@ -29,9 +29,8 @@ def test_demo_flow(tmp_path, monkeypatch):
         assert status["state"] == "active" and status["days_left"] == 90
 
         month = date.today().strftime("%Y-%m")
-        summary = client.get("/api/summary", params={"month": month}).json()
-        assert summary["expense_cents"] < 0
-        assert summary["uncategorized_count"] > 0
+        in_month = client.get("/api/transactions", params={"month": month}).json()
+        assert any(t["amount_cents"] < 0 for t in in_month)
 
         open_items = client.get("/api/transactions", params={"uncategorized": "true"}).json()
         first = open_items[0]
@@ -180,7 +179,7 @@ def test_eingaben_werden_geprueft(tmp_path, monkeypatch):
         acc_id = acc.json()["id"]
         assert client.post(f"/api/accounts/{acc_id}/values", json={"value_cents": 10**19}).status_code == 422
         # Monatsangaben
-        assert client.get("/api/summary", params={"month": "Oktober"}).status_code == 422
+        assert client.get("/api/transactions", params={"month": "Oktober"}).status_code == 422
         assert client.get("/api/transactions", params={"month": "2026-1"}).status_code == 422
         assert client.get("/api/transactions", params={"month": "2026-10"}).status_code == 200
 
@@ -197,3 +196,21 @@ def test_version_gleich_in_server_und_app(tmp_path, monkeypatch):
         # App-Dateien: nachfragen statt alte Fassung behalten; Finanzdaten nie speichern
         assert client.get("/app.js").headers["cache-control"] == "no-cache"
         assert client.get("/api/version").headers["cache-control"] == "no-store"
+
+
+def test_zeitzone_wird_geprueft(monkeypatch):
+    from app import main
+    monkeypatch.delenv("TZ", raising=False)
+    assert main.timezone_problem() is None
+    monkeypatch.setenv("TZ", "UTC")
+    assert main.timezone_problem() is None
+    monkeypatch.setenv("TZ", "Gibt/Es_Nicht")
+    assert "Zeitzonendaten fehlen" in main.timezone_problem()
+
+
+def test_doppelte_kategorie_meldet_409(tmp_path, monkeypatch):
+    with make_client(tmp_path, monkeypatch) as client:
+        new = {"name": "Sport", "kind": "expense", "icon": "tag"}
+        assert client.post("/api/categories", json=new).status_code == 201
+        resp = client.post("/api/categories", json=new)
+        assert resp.status_code == 409 and "gibt es schon" in resp.json()["detail"]

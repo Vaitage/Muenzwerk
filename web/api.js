@@ -46,7 +46,6 @@ window.API = (() => {
     deleteRule: (id) => req("DELETE", `/api/rules/${id}`),
     transactions: (params = {}) => req("GET", `/api/transactions${q(params)}`),
     updateTransaction: (id, data) => req("PATCH", `/api/transactions/${encodeURIComponent(id)}`, data),
-    summary: (month) => req("GET", `/api/summary${q({ month })}`),
     settings: () => req("GET", "/api/settings"),
     updateSettings: (data) => req("PATCH", "/api/settings", data),
     bankStatus: () => req("GET", "/api/bank/status"),

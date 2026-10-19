@@ -307,7 +307,7 @@ def register_verify(body: CredentialIn, request: Request, response: Response, co
     except Exception as exc:
         # Einzelheiten nur ins Log, nicht an den Aufrufer
         log.info("Passkey-Registrierung abgelehnt: %s", exc)
-        raise HTTPException(400, "Passkey konnte nicht geprüft werden")
+        raise HTTPException(400, "Passkey konnte nicht geprüft werden") from exc
     name = (body.name or "").strip()[:40] or f"Passkey vom {_now():%d.%m.%Y}"
     conn.execute(
         "INSERT INTO passkeys (id, public_key, sign_count, name, created) VALUES (?, ?, ?, ?, ?)",
@@ -355,8 +355,10 @@ def login_verify(body: CredentialIn, request: Request, response: Response, conn=
         )
     except HTTPException:
         raise
-    except Exception:
-        raise HTTPException(401, "Anmeldung fehlgeschlagen.")
+    except Exception as exc:
+        # Einzelheiten nur ins Log, nicht an den Aufrufer
+        log.info("Anmeldung abgelehnt: %s", exc)
+        raise HTTPException(401, "Anmeldung fehlgeschlagen.") from exc
     conn.execute(
         "UPDATE passkeys SET sign_count = ?, last_used = ? WHERE id = ?",
         (verified.new_sign_count, _now().isoformat(), cred_id),

@@ -134,7 +134,3 @@ def all_names(key: str) -> tuple[str, str]:
     """Der Name in beiden Sprachen (zum Wiederfinden einer Standardkategorie)."""
     return _names()[key]
 
-
-def translations() -> dict[str, str]:
-    """Deutscher Name -> englischer Name (für die Vorschau)."""
-    return {de: en for de, en in _names().values()}

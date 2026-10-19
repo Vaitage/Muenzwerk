@@ -63,7 +63,7 @@ async def main():
         await page.click("[data-account='4']"); await page.wait_for_timeout(400); await shot()
         await page.mouse.click(195, 20); await page.wait_for_timeout(400)
         await tab("settings"); await page.wait_for_timeout(300)
-        await page.evaluate("document.querySelectorAll('.card')[1].scrollIntoView({block:'start'}); window.scrollBy(0,-110)")
+        await page.click("[data-settings-page=fixed]"); await page.wait_for_timeout(300)   # Mehr → Fixkosten
         await shot()
         # heller Modus
         ctx2 = await b.new_context(color_scheme="light", **opts)

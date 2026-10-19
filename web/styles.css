@@ -603,3 +603,25 @@ body.locked .tabbar { display: none; }
 .update-busy b { display: block; }
 .update-busy span:not(.spinner) { display: block; font-size: 14px; color: var(--muted); margin-top: 2px; }
 .note.warn-text { color: var(--warn, var(--danger)); font-weight: 600; }
+
+/* ---------- Mehr: Zeilen zu Unterseiten ---------- */
+
+.nav-card { padding-top: 4px; padding-bottom: 4px; }
+.navrow {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  padding: 10px 0; min-height: 52px; transition: opacity 120ms;
+}
+.navrow + .navrow { border-top: 1px solid var(--line); }
+.navrow:active { opacity: 0.6; }
+.navrow .grow { flex: 1; min-width: 0; font-weight: 500; }
+.navrow-value { color: var(--muted); font-size: 15px; font-variant-numeric: tabular-nums; }
+.navrow > .ic:last-child { width: 18px; height: 18px; color: var(--muted); }
+.navrow .chip { margin-left: 0; }
+.top-back {
+  display: inline-flex; align-items: center; gap: 2px; margin: 0 0 2px -6px;
+  min-height: 36px; padding: 0 8px 0 0; color: var(--accent); font-size: 17px;
+}
+.top-back .ic { width: 22px; height: 22px; }
+.top-back:active { opacity: 0.5; }
+.cat-title { display: flex; align-items: center; gap: 10px; }
+.cat-title .bubble { flex: none; }
