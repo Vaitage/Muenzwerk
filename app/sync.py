@@ -95,8 +95,10 @@ def run(conn: sqlite3.Connection, provider: BankProvider, psu: dict | None = Non
         except ConsentExpired:
             raise
         except Exception as exc:
-            # Lehnt die Bank die Nutzer-Kopfzeilen ab (z. B. Adresse aus dem Tailnet), einmal ohne
-            if not getattr(provider, "psu_headers", None) or "psu" not in str(exc).lower():
+            # Lehnt die Bank die Nutzer-Kopfzeilen ab (z. B. Adresse aus dem Tailnet), einmal ohne.
+            # Der Wortlaut der Ablehnung ist je Bank anders: jede 400/422 zählt, ein Limit (429) nicht.
+            code = getattr(getattr(exc, "response", None), "status_code", None)
+            if not getattr(provider, "psu_headers", None) or ("psu" not in str(exc).lower() and code not in (400, 422)):
                 raise
             provider.psu_headers = None
             items = fetch()

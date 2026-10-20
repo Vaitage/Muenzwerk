@@ -224,3 +224,42 @@ def test_sync_nutzer_kopfzeilen_und_rueckfall(tmp_path, monkeypatch):
         r = sync.run(conn, p, psu={"Psu-Ip-Address": "1.2.3.4", "Psu-User-Agent": "x"}, manual=False)
     assert r["ok"] and r["new"] == 1
     assert used == [{"Psu-Ip-Address": "1.2.3.4", "Psu-User-Agent": "x"}, None]
+
+
+def test_sync_rueckfall_auch_bei_400_ohne_psu_im_text(tmp_path, monkeypatch):
+    from app import db, sync
+    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "t.db"))
+    p, _ = provider_with(lambda params: {"transactions": [eb_tx(entry_reference="B1")]})
+    used = []
+    real_fetch = p.fetch_transactions
+
+    def fetch(*a):
+        used.append(bool(p.psu_headers))
+        if p.psu_headers:
+            raise http_error(400, "400 transactions: Invalid IP address")
+        return real_fetch(*a)
+    p.fetch_transactions = fetch
+    p.fetch_balances = lambda *a: []
+    with db.session() as conn:
+        db.init(conn)
+        sync.save_connection(conn, "enablebanking", "s", ["konto"], "2027-04-15")
+        r = sync.run(conn, p, psu={"Psu-Ip-Address": "100.64.0.7", "Psu-User-Agent": "x"})
+    assert r["ok"] and used == [True, False]
+
+
+def test_sync_limit_429_kein_zweiter_versuch(tmp_path, monkeypatch):
+    from app import db, sync
+    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "t.db"))
+    p, _ = provider_with(lambda params: {"transactions": []})
+    used = []
+
+    def fetch(*a):
+        used.append(1)
+        raise http_error(429, "429 transactions: ASPSP_RATE_LIMIT_EXCEEDED")
+    p.fetch_transactions = fetch
+    with db.session() as conn:
+        db.init(conn)
+        sync.save_connection(conn, "enablebanking", "s", ["konto"], "2027-04-15")
+        r = sync.run(conn, p, psu={"Psu-Ip-Address": "100.64.0.7", "Psu-User-Agent": "x"})
+        err = sync.status(conn)["last_error"]
+    assert not r["ok"] and len(used) == 1 and "ASPSP_RATE_LIMIT_EXCEEDED" in err
