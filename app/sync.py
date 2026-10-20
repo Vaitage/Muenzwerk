@@ -66,7 +66,7 @@ def save_connection(conn: sqlite3.Connection, provider: str, session_id: str,
     )
 
 
-def run(conn: sqlite3.Connection, provider: BankProvider) -> dict:
+def run(conn: sqlite3.Connection, provider: BankProvider, psu: dict | None = None, manual: bool = False) -> dict:
     row = get_connection(conn)
     if row is None:
         return {"ok": False, "reason": "not_connected"}
@@ -84,15 +84,22 @@ def run(conn: sqlite3.Connection, provider: BankProvider) -> dict:
     if oldest:
         since = min(since, date.fromisoformat(oldest))
 
-    # Einmal am Tag verschiedene Abfragen nach Vormerkungen ausprobieren (Fehlersuche ING)
-    probed = conn.execute("SELECT value FROM settings WHERE key = 'pending_probe_day'").fetchone()
-    today_iso = date.today().isoformat()
-    if hasattr(provider, "probe_pending") and (probed is None or probed["value"] != today_iso):
-        provider.probe_pending = True
-        conn.execute("INSERT INTO settings (key, value) VALUES ('pending_probe_day', ?) "
-                     "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (today_iso,))
+    # Nutzer ist da (App offen): seine Kopfzeilen mitschicken; „Jetzt abrufen“ fragt Vormerkungen extra ab
+    if hasattr(provider, "psu_headers"):
+        provider.psu_headers = psu or None
+        provider.ask_pending = manual
+    fetch = lambda: provider.fetch_transactions(row["session_id"], (row["account_ids"] or "").split(","), since)
     try:
-        items = provider.fetch_transactions(row["session_id"], (row["account_ids"] or "").split(","), since)
+        try:
+            items = fetch()
+        except ConsentExpired:
+            raise
+        except Exception as exc:
+            # Lehnt die Bank die Nutzer-Kopfzeilen ab (z. B. Adresse aus dem Tailnet), einmal ohne
+            if not getattr(provider, "psu_headers", None) or "psu" not in str(exc).lower():
+                raise
+            provider.psu_headers = None
+            items = fetch()
     except ConsentExpired as exc:
         conn.execute("UPDATE bank_connection SET status = 'expired', last_error = ? WHERE id = 1", (str(exc)[:500],))
         return {"ok": False, "reason": "expired"}

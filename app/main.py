@@ -21,14 +21,23 @@ WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 SYNC_INTERVAL_HOURS = float(os.environ.get("SYNC_INTERVAL_HOURS", "6"))
 
 
-def sync_or_reason(conn) -> dict:
+def psu_headers(request: Request) -> dict:
+    """Kopfzeilen für die Bank, wenn der Nutzer den Abruf selbst auslöst (App offen).
+    Hinter `tailscale serve` steht die Adresse des Handys in X-Forwarded-For."""
+    ip = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+    ip = ip or (request.client.host if request.client else "")
+    agent = request.headers.get("user-agent", "")[:200]
+    return {"Psu-Ip-Address": ip, "Psu-User-Agent": agent} if ip and agent else {}
+
+
+def sync_or_reason(conn, psu: dict | None = None, manual: bool = False) -> dict:
     """Abruf; ist die Bank noch nicht eingerichtet, nur der Grund statt eines Fehlers."""
     try:
         provider = get_provider()
     except BankNotConfigured:
         connected = sync.get_connection(conn) is not None
         return {"ok": False, "reason": "not_configured" if connected else "not_connected"}
-    return sync.run(conn, provider)
+    return sync.run(conn, provider, psu=psu, manual=manual)
 
 
 def run_sync_once() -> dict:
@@ -417,8 +426,8 @@ def bank_callback(code: str, state: str, conn=Depends(get_db)):
 
 
 @app.post("/api/bank/sync")
-def bank_sync(conn=Depends(get_db)):
-    return sync_or_reason(conn)
+def bank_sync(request: Request, manual: bool = False, conn=Depends(get_db)):
+    return sync_or_reason(conn, psu=psu_headers(request), manual=manual)
 
 
 # Die App selbst (muss als Letztes kommen, damit /api Vorrang hat).

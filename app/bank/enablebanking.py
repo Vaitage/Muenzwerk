@@ -94,14 +94,18 @@ class EnableBankingProvider(BankProvider):
         )
 
     def _request(self, method: str, path: str, **kwargs) -> dict:
-        headers = {"Authorization": f"Bearer {self._token()}"}
+        headers = {"Authorization": f"Bearer {self._token()}", **(self.psu_headers or {})}
         with httpx.Client(base_url=API, timeout=30) as client:
             resp = client.request(method, path, headers=headers, **kwargs)
         if resp.status_code in (401, 403) and "expired" in resp.text.lower():
             raise ConsentExpired(resp.text)
         if resp.status_code == 422 and "session" in resp.text.lower():
             raise ConsentExpired(resp.text)
-        resp.raise_for_status()
+        if resp.is_error:
+            # Grund der Bank mitgeben (z. B. ASPSP_RATE_LIMIT_EXCEEDED), sonst sieht man nur "400"
+            raise httpx.HTTPStatusError(
+                f"{resp.status_code} {path.split('?')[0].rsplit('/', 1)[-1]}: {resp.text[:300]}",
+                request=resp.request, response=resp)
         return resp.json()
 
     # -- Verbinden ------------------------------------------------------------
@@ -172,56 +176,35 @@ class EnableBankingProvider(BankProvider):
                 return result
             params = {**params, "continuation_key": key}
 
-    # Vormerkungen der ING tragen den späteren Buchungstag (bis ~1 Woche in der Zukunft).
-    # Ohne Enddatum begrenzt die Schnittstelle evtl. auf heute – dann fehlen sie.
-    AHEAD_DAYS = 14
-    probe_pending = False   # sync.run setzt das höchstens einmal am Tag: mehrere Abfragen ausprobieren
-
-    def _try(self, uid: str, params: dict, counts: dict) -> tuple[list[dict], str]:
-        extra: dict[str, int] = {}
-        try:
-            items = self._fetch_pages(uid, params, extra)
-        except ConsentExpired:
-            raise
-        except Exception as exc:  # Bank kennt den Filter nicht o. Ä.
-            status = getattr(getattr(exc, "response", None), "status_code", None)
-            return [], f"Fehler {status}" if status else "Fehler"
-        for k, v in extra.items():
-            counts[k] = counts.get(k, 0) + v
-        return items, f"{sum(1 for i in items if i['pending'])} vorgemerkt"
+    # Vom Abruf gesetzt (sync.run): Kopfzeilen des Nutzers, wenn er die App gerade offen hat.
+    # Dann gilt das Abruf-Limit der Bank für Hintergrundabrufe (oft 4 am Tag) nicht.
+    psu_headers: dict | None = None
+    ask_pending = False      # nur bei „Jetzt abrufen“: Vormerkungen zusätzlich ausdrücklich abfragen
 
     def fetch_transactions(self, session_id, account_ids, since: date) -> list[dict]:
         result: dict[str, dict] = {}
         counts: dict[str, int] = {}
-        probes: dict[str, str] = {}
-        ahead = (date.today() + timedelta(days=self.AHEAD_DAYS)).isoformat()
-        base = {"date_from": since.isoformat(), "date_to": ahead}
+        note = "nicht nötig"
         for uid in account_ids:
-            try:
-                items = self._fetch_pages(uid, base, counts)
-            except ConsentExpired:
-                raise
-            except httpx.HTTPStatusError as exc:   # Enddatum in der Zukunft abgelehnt: ohne
-                probes["Enddatum"] = f"Fehler {exc.response.status_code}"
-                base = {"date_from": since.isoformat()}
-                items = self._fetch_pages(uid, base, counts)
-            if not any(i["pending"] for i in items):
-                # Kam nichts Vorgemerktes: ausdrücklich nachfragen (einmal am Tag mehrere Varianten)
-                variants = {"PDNG": {**base, "transaction_status": "PDNG"}}
-                if self.probe_pending:
-                    variants["PDNG ohne Enddatum"] = {"date_from": since.isoformat(), "transaction_status": "PDNG"}
-                    variants["längste Strategie"] = {**base, "strategy": "longest"}
-                for name, params in variants.items():
-                    found, note = self._try(uid, params, counts)
-                    probes[name] = note
+            items = self._fetch_pages(uid, {"date_from": since.isoformat()}, counts)
+            if self.ask_pending and not any(i["pending"] for i in items):
+                extra: dict[str, int] = {}
+                try:
+                    found = self._fetch_pages(uid, {"date_from": since.isoformat(), "transaction_status": "PDNG"}, extra)
                     items += found
-                    if any(i["pending"] for i in found):
-                        break
+                    note = f"{sum(1 for i in found if i['pending'])} geliefert"
+                except ConsentExpired:
+                    raise
+                except Exception as exc:   # Filter unbekannt o. Ä.: Gebuchtes bleibt
+                    note = f"Fehler: {str(exc)[:160]}"
+                for k, v in extra.items():
+                    counts[f"{k} (nachgefragt)"] = counts.get(f"{k} (nachgefragt)", 0) + v
+            elif not self.ask_pending:
+                note = "nur bei „Jetzt abrufen“"
             for i in items:
                 result.setdefault(i["id"], i)
-        self.probe_pending = False
-        self.last_info = {"counts": counts, "pending_query": "; ".join(f"{k}: {v}" for k, v in probes.items()) or "nicht nötig",
-                          "since": since.isoformat()}
+        self.last_info = {"counts": counts, "pending_query": note, "since": since.isoformat(),
+                          "user_present": bool(self.psu_headers)}
         return list(result.values())
 
     @staticmethod

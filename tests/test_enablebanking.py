@@ -94,7 +94,7 @@ def test_vormerkung_am_kauftag_lastschrift_am_faelligkeitstag():
     assert pending_day(lastschrift, "Tibber Rechnung 123", heute) == "2026-10-19"
 
 
-# --- Abruf: Vormerkungen ausdrücklich nachfragen ----------------------------
+# --- Abruf: Vormerkungen, Nutzer-Kopfzeilen, Fehlertexte -------------------
 from datetime import date
 
 import httpx
@@ -115,40 +115,49 @@ def provider_with(responses):
     return p, calls
 
 
-def test_ohne_vorgemerkte_wird_einmal_nachgefragt():
-    booked = eb_tx(entry_reference="B1")
-    pend = eb_tx(entry_reference="P1", status="PDNG", remittance_information=["Kaufumsatz VISA Card"])
+def http_error(status, text="x"):
+    return httpx.HTTPStatusError(text, request=httpx.Request("GET", "x"), response=httpx.Response(status))
 
+
+def test_automatischer_abruf_nur_eine_anfrage():
+    p, calls = provider_with(lambda params: {"transactions": [eb_tx(entry_reference="B1")]})
+    items = p.fetch_transactions("s", ["konto"], date(2026, 10, 1))
+    assert [i["id"] for i in items] == ["eb-B1"]
+    assert calls == [{"date_from": "2026-10-01"}]      # kein Enddatum, keine Zusatzabfrage
+    assert p.last_info["pending_query"] == "nur bei „Jetzt abrufen“"
+
+
+def test_jetzt_abrufen_fragt_vormerkungen_nach():
     def responses(params):
         if params.get("transaction_status") == "PDNG":
-            return {"transactions": [pend]}
-        return {"transactions": [booked]}
+            return {"transactions": [eb_tx(entry_reference="P1", status="PDNG")]}
+        return {"transactions": [eb_tx(entry_reference="B1")]}
     p, calls = provider_with(responses)
+    p.ask_pending = True
     items = p.fetch_transactions("s", ["konto"], date(2026, 10, 1))
     assert {i["id"] for i in items} == {"eb-B1", "eb-p-P1"}
-    assert len(calls) == 2 and calls[1]["transaction_status"] == "PDNG"
-    assert calls[0]["date_to"] > "2026-10-01"          # Vormerkungen liegen in der Zukunft
-    assert p.last_info["pending_query"] == "PDNG: 1 vorgemerkt"
-    assert p.last_info["counts"] == {"BOOK": 1, "PDNG": 1}
+    assert len(calls) == 2
+    assert p.last_info["pending_query"] == "1 geliefert"
+    assert p.last_info["counts"] == {"BOOK": 1, "PDNG (nachgefragt)": 1}
 
 
 def test_vorgemerkte_schon_dabei_keine_zweite_anfrage():
     txs = [eb_tx(entry_reference="B1"), eb_tx(entry_reference="P1", status="PDNG")]
     p, calls = provider_with(lambda params: {"transactions": txs})
-    items = p.fetch_transactions("s", ["konto"], date(2026, 10, 1))
-    assert len(items) == 2 and len(calls) == 1
-    assert p.last_info["pending_query"] == "nicht nötig"
+    p.ask_pending = True
+    assert len(p.fetch_transactions("s", ["konto"], date(2026, 10, 1))) == 2
+    assert len(calls) == 1
 
 
-def test_filter_unbekannt_gebuchtes_bleibt():
+def test_nachfrage_fehlgeschlagen_gebuchtes_bleibt():
     def responses(params):
         if params.get("transaction_status"):
-            raise httpx.HTTPStatusError("bad", request=httpx.Request("GET", "x"), response=httpx.Response(400))
+            raise http_error(400, "400 transactions: WRONG_TRANSACTIONS_PERIOD")
         return {"transactions": [eb_tx(entry_reference="B1")]}
     p, _ = provider_with(responses)
-    items = p.fetch_transactions("s", ["konto"], date(2026, 10, 1))
-    assert [i["id"] for i in items] == ["eb-B1"]
-    assert p.last_info["pending_query"] == "PDNG: Fehler 400"
+    p.ask_pending = True
+    assert [i["id"] for i in p.fetch_transactions("s", ["konto"], date(2026, 10, 1))] == ["eb-B1"]
+    assert "WRONG_TRANSACTIONS_PERIOD" in p.last_info["pending_query"]
 
 
 def test_abgelaufene_freigabe_bei_nachfrage_wird_gemeldet():
@@ -157,6 +166,7 @@ def test_abgelaufene_freigabe_bei_nachfrage_wird_gemeldet():
             raise ConsentExpired("expired")
         return {"transactions": []}
     p, _ = provider_with(responses)
+    p.ask_pending = True
     with pytest.raises(ConsentExpired):
         p.fetch_transactions("s", ["konto"], date(2026, 10, 1))
 
@@ -170,30 +180,47 @@ def test_seiten_behalten_den_filter():
             return {"transactions": [eb_tx(entry_reference="B1")]}
         return pages[params.get("continuation_key")]
     p, calls = provider_with(responses)
+    p.ask_pending = True
     items = p.fetch_transactions("s", ["konto"], date(2026, 10, 1))
     assert "eb-p-P1" in {i["id"] for i in items}
-    assert calls[-1]["transaction_status"] == "PDNG" and calls[-1]["continuation_key"] == "k2"
+    assert calls[-1] == {"date_from": "2026-10-01", "transaction_status": "PDNG", "continuation_key": "k2"}
 
 
-def test_einmal_am_tag_mehrere_varianten():
-    def responses(params):
-        if params.get("strategy") == "longest":
-            return {"transactions": [eb_tx(entry_reference="P9", status="PDNG")]}
-        return {"transactions": [eb_tx(entry_reference="B1")] if not params.get("transaction_status") else []}
-    p, calls = provider_with(responses)
-    p.probe_pending = True
-    items = p.fetch_transactions("s", ["konto"], date(2026, 10, 1))
-    assert "eb-p-P9" in {i["id"] for i in items}
-    assert p.last_info["pending_query"] == "PDNG: 0 vorgemerkt; PDNG ohne Enddatum: 0 vorgemerkt; längste Strategie: 1 vorgemerkt"
-    assert p.probe_pending is False and len(calls) == 4
+def test_fehlertext_enthaelt_grund_der_bank(monkeypatch):
+    p = EnableBankingProvider.__new__(EnableBankingProvider)
+    p._token = lambda: "t"
+    p.psu_headers = {"Psu-Ip-Address": "100.64.0.7", "Psu-User-Agent": "iPhone"}
+    seen = {}
+
+    def handler(request):
+        seen.update(request.headers)
+        return httpx.Response(429, json={"error": "ASPSP_RATE_LIMIT_EXCEEDED"})
+    real = httpx.Client
+    monkeypatch.setattr(httpx, "Client", lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
+    with pytest.raises(httpx.HTTPStatusError) as exc:
+        p._request("GET", "/accounts/abc/transactions", params={"date_from": "2026-10-13"})
+    assert "ASPSP_RATE_LIMIT_EXCEEDED" in str(exc.value) and str(exc.value).startswith("429 transactions")
+    assert seen["psu-ip-address"] == "100.64.0.7" and seen["psu-user-agent"] == "iPhone"
 
 
-def test_enddatum_abgelehnt_dann_ohne():
-    def responses(params):
-        if "date_to" in params:
-            raise httpx.HTTPStatusError("bad", request=httpx.Request("GET", "x"), response=httpx.Response(422))
-        return {"transactions": [eb_tx(entry_reference="B1"), eb_tx(entry_reference="P1", status="PDNG")]}
-    p, _ = provider_with(responses)
-    items = p.fetch_transactions("s", ["konto"], date(2026, 10, 1))
-    assert len(items) == 2
-    assert p.last_info["pending_query"] == "Enddatum: Fehler 422"
+# --- sync.run: Kopfzeilen weiterreichen, bei Ablehnung einmal ohne ----------
+def test_sync_nutzer_kopfzeilen_und_rueckfall(tmp_path, monkeypatch):
+    from app import db, sync
+    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "t.db"))
+    p, calls = provider_with(lambda params: {"transactions": [eb_tx(entry_reference="B1")]})
+    used = []
+    real_fetch = p.fetch_transactions
+
+    def fetch(*a):
+        used.append(p.psu_headers)
+        if p.psu_headers:
+            raise http_error(422, "422 transactions: PSU_HEADER_NOT_PROVIDED")
+        return real_fetch(*a)
+    p.fetch_transactions = fetch
+    p.fetch_balances = lambda *a: []
+    with db.session() as conn:
+        db.init(conn)
+        sync.save_connection(conn, "enablebanking", "s", ["konto"], "2027-04-15")
+        r = sync.run(conn, p, psu={"Psu-Ip-Address": "1.2.3.4", "Psu-User-Agent": "x"}, manual=False)
+    assert r["ok"] and r["new"] == 1
+    assert used == [{"Psu-Ip-Address": "1.2.3.4", "Psu-User-Agent": "x"}, None]

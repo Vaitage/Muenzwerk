@@ -50,7 +50,7 @@ window.API = (() => {
     updateSettings: (data) => req("PATCH", "/api/settings", data),
     bankStatus: () => req("GET", "/api/bank/status"),
     bankConnect: () => req("POST", "/api/bank/connect"),
-    bankSync: () => req("POST", "/api/bank/sync"),
+    bankSync: (manual) => req("POST", `/api/bank/sync${manual ? "?manual=1" : ""}`),
     undoStatus: () => req("GET", "/api/undo"),
     undo: () => req("POST", "/api/undo"),
     // Bereich „Updates“ – nur wenn die Installation das erlaubt (sonst 404 -> null)
