@@ -66,7 +66,7 @@ Taken from the demo with made-up data.
 - **Passkey sign-in** – Face ID / fingerprint, locks itself after 15 minutes.
 - **iPhone widget** – money left and today's daily budget on the home or lock screen,
   via the free app [Scriptable](https://scriptable.app) and a read-only widget key.
-- **German and English** – follows your device language and can be switched under *More*.
+- **German and English** – follows your device language and can be switched under *Settings*.
 
 ## How it works
 
@@ -104,7 +104,7 @@ pip install -r requirements.txt
 HAUSHALTSBUCH_AUTH=0 uvicorn app.main:app --reload
 ```
 
-Then open http://localhost:8000 and connect the demo bank under *More*.
+Then open http://localhost:8000 and connect the demo bank under *Settings*.
 (`HAUSHALTSBUCH_AUTH=0` switches off the passkey sign-in – for local testing only.)
 
 ## Installation
@@ -142,7 +142,7 @@ a passkey and add the page to your home screen. Setting up the first passkey ask
 3. Put the downloaded private key into `data/enablebanking.pem`.
 4. In `.env`: `BANK_PROVIDER=enablebanking`, `ENABLEBANKING_APP_ID=…`, `PUBLIC_URL=…`,
    and your bank's name and country as listed by Enable Banking.
-5. Restart (`docker compose up -d`), tap *Connect* under *More* and confirm with your bank.
+5. Restart (`docker compose up -d`), tap *Connect* under *Settings* and confirm with your bank.
 
 Access is read-only: Münzwerk can read transactions and balances but cannot move money,
 and neither Münzwerk nor Enable Banking ever see your online banking password.
@@ -162,7 +162,7 @@ and neither Münzwerk nor Enable Banking ever see your online banking password.
 
 Lost all passkeys? Run `docker exec haushaltsbuch python -m app.auth zuruecksetzen`,
 then create a new one in the app with the setup code it prints.
-Lost a device? Delete its passkey under *More → Sign-in* – that also signs out every
+Lost a device? Delete its passkey under *Settings → Sign-in* – that also signs out every
 other device. *Sign out other devices* does the same without deleting a passkey.
 
 ### Updates from the app (optional)
@@ -173,7 +173,7 @@ Update Münzwerk from your phone instead of logging into the server:
 bash tools/pi/updates-einrichten.sh https://github.com/<you>/muenzwerk
 ```
 
-This adds `UPDATES_IN_APP=1` to the `.env` of that installation. Under *More → Updates* the app
+This adds `UPDATES_IN_APP=1` to the `.env` of that installation. Under *Settings → Updates* the app
 then shows the installed version, whether a newer one is available on GitHub (checked hourly,
 with the list of changes) and an *Update now* button. Nothing is installed automatically.
 
@@ -186,7 +186,7 @@ For a private fork the setup creates a read-only SSH key, which you add once as 
 
 ### iPhone widget (optional)
 
-Under *More → iPhone widget* you create a widget key and copy a ready-made script for the
+Under *Settings → iPhone widget* you create a widget key and copy a ready-made script for the
 free app [Scriptable](https://scriptable.app) (the app fills in its own address). Paste it into
 Scriptable, run it once to enter the key, then add a Scriptable widget (small, medium or lock
 screen) and choose the script. It shows money left until month end, the daily budget for the
@@ -229,6 +229,7 @@ Found a vulnerability? Please report it privately, see [SECURITY.md](SECURITY.md
 pip install -r requirements.txt pytest
 pytest                                  # server
 node --test tests/*.test.mjs            # calculations and translations
+python tools/build_demo.py && python tools/ui_pruefung.py   # contrast, text size, touch targets (needs Playwright)
 python tools/build_demo.py              # demo as a single HTML file
 python tools/screenshots.py en          # README images (needs Playwright)
 ```

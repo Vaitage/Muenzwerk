@@ -110,7 +110,7 @@ def run(conn: sqlite3.Connection, provider: BankProvider, psu: dict | None = Non
         return {"ok": False, "reason": "error", "detail": str(exc)[:200]}
 
     result = ledger.import_transactions(conn, items, window_start=since)
-    # Was die Bank geliefert hat – zur Fehlersuche unter „Mehr → Bank“
+    # Was die Bank geliefert hat – zur Fehlersuche unter „Einstellungen → Bank“
     info = {
         **(getattr(provider, "last_info", None) or {}),
         "at": datetime.now().isoformat(timespec="seconds"),

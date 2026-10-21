@@ -1,6 +1,6 @@
 // Münzwerk – iPhone-Widget für die App „Scriptable“ (https://scriptable.app)
 //
-// Einrichten (steht auch in Münzwerk unter „Mehr → iPhone-Widget“):
+// Einrichten (steht auch in Münzwerk unter „Einstellungen → iPhone-Widget“):
 //  1. Dieses Skript in Scriptable als neues Skript einfügen, Name z. B. „Münzwerk“.
 //  2. Einmal in Scriptable starten und den Widget-Schlüssel aus Münzwerk einfügen.
 //     Er wird im Schlüsselbund des iPhones gespeichert, nicht in diesem Skript.
@@ -20,7 +20,8 @@ const L = DE ? {
   stale: "Münzwerk öffnen für neue Zahlen", noKey: "Skript einmal in Scriptable starten und den Widget-Schlüssel eingeben.",
   badKey: "Widget-Schlüssel ungültig – in Münzwerk neu erzeugen.", noData: "Noch keine Zahlen – Münzwerk einmal öffnen.",
   unreachable: "Pi nicht erreichbar – ist Tailscale an?", bank: "Bankfreigabe", days: "Tage", expired: "abgelaufen",
-  askTitle: "Widget-Schlüssel", askText: "In Münzwerk unter „Mehr → iPhone-Widget“ erzeugen und hier einfügen.",
+  fetchFailed: "Letzter Bankabruf fehlgeschlagen",
+  askTitle: "Widget-Schlüssel", askText: "In Münzwerk unter „Einstellungen → iPhone-Widget“ erzeugen und hier einfügen.",
   save: "Speichern", cancel: "Abbrechen",
 } : {
   title: "Münzwerk", left: "Left until month end", today: "Today", tomorrow: "Tomorrow", after: "In 2 days",
@@ -28,7 +29,8 @@ const L = DE ? {
   stale: "Open Münzwerk for new numbers", noKey: "Run this script once in Scriptable and enter the widget key.",
   badKey: "Widget key invalid – create a new one in Münzwerk.", noData: "No numbers yet – open Münzwerk once.",
   unreachable: "Pi not reachable – is Tailscale on?", bank: "Bank access", days: "days", expired: "expired",
-  askTitle: "Widget key", askText: "Create it in Münzwerk under “More → iPhone widget” and paste it here.",
+  fetchFailed: "Last bank fetch failed",
+  askTitle: "Widget key", askText: "Create it in Münzwerk under “Settings → iPhone widget” and paste it here.",
   save: "Save", cancel: "Cancel",
 };
 const LOCALE = DE ? "de-DE" : "en-GB";
@@ -77,6 +79,7 @@ function buildModel(data, now, offline) {
   let warning = null;
   if (bank.state === "expired") warning = `${L.bank} ${L.expired}`;
   else if (bank.state === "expiring") warning = `${L.bank}: ${bank.days_left} ${L.days}`;
+  else if (bank.error) warning = L.fetchFailed;
   return {
     left: snap.budget_left_cents,
     days,

@@ -81,3 +81,8 @@ test("ohne Schnappschuss und mit ablaufender Bankfreigabe", async () => {
   const all = texts((await runWidget({ response: { status: 200, body: warn }, now: NOW })).widget).join(" | ");
   assert.match(all, /Bankfreigabe: 5 Tage/);
 });
+
+test("fehlgeschlagener Bankabruf wird angezeigt", async () => {
+  const all = texts((await runWidget({ response: { status: 200, body: { ...DATA, bank: { state: "active", error: true } } }, now: NOW })).widget).join(" | ");
+  assert.match(all, /Letzter Bankabruf fehlgeschlagen/);
+});

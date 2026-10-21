@@ -13,7 +13,7 @@
 # an. Den einmal bei GitHub als „Deploy key“ OHNE Schreibrecht eintragen und das
 # Skript noch einmal starten. Der Pi kann damit nur lesen, nichts ändern.
 #
-# Danach gibt es in der App dieser Installation unter „Mehr“ den Bereich „Updates“
+# Danach gibt es in der App dieser Installation unter „Einstellungen“ den Bereich „Updates“
 # (UPDATES_IN_APP=1 in ihrer .env). Ausschalten: crontab -e und die Zeile mit
 # kontor-update.sh löschen.
 set -euo pipefail
@@ -81,7 +81,7 @@ echo "Protokoll: ~/kontor-update.log"
 if ! grep -q '^UPDATES_IN_APP=' "$HAUPT/.env" 2>/dev/null; then
   printf '\n# Updates aus der App anstoßen (nur diese Installation)\nUPDATES_IN_APP=1\n' >> "$HAUPT/.env"
   (cd "$HAUPT" && docker compose up -d >/dev/null 2>&1) || true
-  echo "In der App unter „Mehr“ gibt es jetzt den Bereich „Updates“."
+  echo "In der App unter „Einstellungen“ gibt es jetzt den Bereich „Updates“."
 fi
 
 echo "Erste Prüfung …"

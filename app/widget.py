@@ -127,5 +127,7 @@ def widget_data(request: Request, conn=Depends(get_db)):
     bank = sync.status(conn)
     return {
         "snapshot": json.loads(snap) if snap else None,
-        "bank": {"state": bank["state"], "days_left": bank["days_left"], "last_sync": bank["last_sync"]},
+        "bank": {"state": bank["state"], "days_left": bank["days_left"], "last_sync": bank["last_sync"],
+                 # letzter Abruf fehlgeschlagen? (ein Fehler nur bei den Kontoständen zählt nicht)
+                 "error": bool(bank.get("last_error")) and not str(bank.get("last_error")).startswith("Kontostände")},
     }

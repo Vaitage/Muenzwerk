@@ -67,7 +67,7 @@ Aufnahmen aus der Vorschau mit erfundenen Beispieldaten.
 - **Anmeldung per Passkey** – Face ID / Fingerabdruck, sperrt sich nach 15 Minuten.
 - **iPhone-Widget** – Übrig und Tagesbudget auf dem Home- oder Sperrbildschirm, über die
   kostenlose App [Scriptable](https://scriptable.app) und einen nur lesenden Widget-Schlüssel.
-- **Deutsch und Englisch** – richtet sich nach der Sprache des Geräts, umschaltbar unter „Mehr“.
+- **Deutsch und Englisch** – richtet sich nach der Sprache des Geräts, umschaltbar unter „Einstellungen“.
 
 ## Aufbau
 
@@ -105,7 +105,7 @@ pip install -r requirements.txt
 HAUSHALTSBUCH_AUTH=0 uvicorn app.main:app --reload
 ```
 
-Dann http://localhost:8000 öffnen und unter „Mehr“ die Demo-Bank verbinden.
+Dann http://localhost:8000 öffnen und unter „Einstellungen“ die Demo-Bank verbinden.
 (`HAUSHALTSBUCH_AUTH=0` schaltet die Anmeldung per Passkey ab – nur zum lokalen Testen.)
 
 ## Installation
@@ -146,7 +146,7 @@ Windows-PC aus per SSH erledigen (Docker, Tailscale, App).
 3. Den heruntergeladenen privaten Schlüssel nach `data/enablebanking.pem` legen.
 4. In `.env`: `BANK_PROVIDER=enablebanking`, `ENABLEBANKING_APP_ID=…`, `PUBLIC_URL=…`
    sowie Name und Land deiner Bank, wie Enable Banking sie führt.
-5. Neu starten (`docker compose up -d`), unter „Mehr“ auf „Verbinden“ tippen und bei
+5. Neu starten (`docker compose up -d`), unter „Einstellungen“ auf „Verbinden“ tippen und bei
    der Bank bestätigen.
 
 Der Zugriff ist nur lesend: Münzwerk kann Umsätze und Kontostände lesen, aber kein Geld
@@ -167,7 +167,7 @@ bewegen. Dein Online-Banking-Passwort sehen weder Münzwerk noch Enable Banking.
 
 Alle Passkeys verloren? `docker exec haushaltsbuch python -m app.auth zuruecksetzen`,
 danach in der App mit dem angezeigten Einrichtungscode einen neuen anlegen.
-Gerät verloren? Unter *Mehr → Anmeldung* seinen Passkey löschen – dabei werden auch alle
+Gerät verloren? Unter *Einstellungen → Anmeldung* seinen Passkey löschen – dabei werden auch alle
 anderen Geräte abgemeldet. *Andere Geräte abmelden* tut das, ohne einen Passkey zu löschen.
 
 ### Updates aus der App (optional)
@@ -178,7 +178,7 @@ Münzwerk vom Handy aus aktualisieren, statt sich am Server anzumelden:
 bash tools/pi/updates-einrichten.sh https://github.com/<du>/muenzwerk
 ```
 
-Das trägt `UPDATES_IN_APP=1` in die `.env` dieser Installation ein. Unter „Mehr → Updates“ zeigt
+Das trägt `UPDATES_IN_APP=1` in die `.env` dieser Installation ein. Unter „Einstellungen → Updates“ zeigt
 die App dann den installierten Stand, ob es auf GitHub einen neueren gibt (stündlich geprüft, mit
 Liste der Änderungen), und einen Knopf „Jetzt aktualisieren“. Automatisch eingespielt wird nichts.
 
@@ -191,7 +191,7 @@ einträgst. Protokoll: `~/kontor-update.log`, ausschalten mit `crontab -e`.
 
 ### iPhone-Widget (optional)
 
-Unter „Mehr → iPhone-Widget“ erzeugst du einen Widget-Schlüssel und kopierst ein fertiges Skript
+Unter „Einstellungen → iPhone-Widget“ erzeugst du einen Widget-Schlüssel und kopierst ein fertiges Skript
 für die kostenlose App [Scriptable](https://scriptable.app) (die eigene Adresse setzt die App ein).
 In Scriptable einfügen, einmal starten und den Schlüssel eingeben, dann ein Scriptable-Widget
 hinzufügen (klein, mittel oder Sperrbildschirm) und das Skript wählen. Es zeigt, was bis
@@ -239,6 +239,7 @@ Eine Sicherheitslücke gefunden? Bitte vertraulich melden, siehe [SECURITY.md](S
 pip install -r requirements.txt pytest
 pytest                                  # Server
 node --test tests/*.test.mjs            # Auswertungen und Übersetzungen
+python tools/build_demo.py && python tools/ui_pruefung.py   # Kontrast, Schriftgröße, Tippflächen (braucht Playwright)
 python tools/build_demo.py              # Vorschau als eine HTML-Datei
 python tools/screenshots.py de          # Bilder für diese README (braucht Playwright)
 ```

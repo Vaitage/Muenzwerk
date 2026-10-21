@@ -21,7 +21,12 @@
 <body>
   <div class="app">
     <header class="top" id="top"></header>
-    <main id="main"></main>
+    <main id="main" aria-busy="true">
+      <!-- Platzhalter, bis die Zahlen geladen sind (render() ersetzt sie) -->
+      <div class="skeleton hero-sk" aria-hidden="true"></div>
+      <div class="skeleton card-sk" aria-hidden="true"></div>
+      <div class="skeleton card-sk" aria-hidden="true"></div>
+    </main>
   </div>
   <nav class="tabbar" id="tabbar" aria-label="Bereiche"></nav>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>

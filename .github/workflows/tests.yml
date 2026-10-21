@@ -28,3 +28,8 @@ jobs:
         run: node --test tests/*.test.mjs
       - name: Demo build
         run: python tools/build_demo.py
+      - name: UI check (contrast, text size, touch targets)
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+          python tools/ui_pruefung.py

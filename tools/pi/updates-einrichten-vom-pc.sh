@@ -7,7 +7,7 @@
 #
 # Bei einem privaten Repository zeigt es einen Schlüssel an, der einmal bei GitHub
 # eingetragen wird; danach dieses Skript noch einmal starten. Ab dann reicht in der
-# App „Mehr → Updates → Jetzt aktualisieren“ – der PC muss nicht mehr an sein.
+# App „Einstellungen → Updates → Jetzt aktualisieren“ – der PC muss nicht mehr an sein.
 set -euo pipefail
 
 PI="${PI:-haushaltsbuch}"          # Eintrag in ~/.ssh/config

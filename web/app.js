@@ -2,7 +2,7 @@
   "use strict";
   // Version dieser App-Dateien (gleich wie __version__ in app/__init__.py). Weicht die
   // Version des Servers ab, zeigt das Handy noch eine zwischengespeicherte Fassung.
-  const APP_VERSION = "1.4.4";
+  const APP_VERSION = "1.5.0";
   const A = window.Analytics;
   const { t, tn, ord, locale } = window.I18N;
 
@@ -39,7 +39,7 @@
     statsMonth: thisMonth,
     statsYear: thisMonth.slice(0, 4),
     settingsKind: "expense",
-    settingsPage: null,       // Unterseite von „Mehr“ (siehe SETTINGS_PAGES)
+    settingsPage: null,       // Unterseite von „Einstellungen“ (siehe SETTINGS_PAGES)
     txFilter: "all",          // "all" oder "open" (noch zuzuordnen)
     txQuery: "",              // Suchbegriff in Umsätze
     txRange: "year",          // Zeitraum der Suche: "month", "year", "all"
@@ -326,7 +326,7 @@
     { id: "transactions", label: t("Umsätze"), icon: "list", title: t("Umsätze") },
     { id: "stats", label: t("Statistik"), icon: "chart", title: t("Statistik") },
     { id: "wealth", label: t("Vermögen"), icon: "piggy", title: t("Vermögen") },
-    { id: "settings", label: t("Mehr"), icon: "settings", title: t("Einstellungen") },
+    { id: "settings", label: t("Einstellungen"), icon: "settings", title: t("Einstellungen") },
   ];
 
   function renderTabbar() {
@@ -357,6 +357,7 @@
     renderTop();
     renderTabbar();
     const main = $("#main");
+    main.removeAttribute("aria-busy");
     Object.keys(chartHandlers).forEach((k) => delete chartHandlers[k]);
     try {
       main.innerHTML = {
@@ -384,8 +385,43 @@
     if (b.state === "none" && b.setup) return noticeHtml("bank", t("Bank noch nicht eingerichtet"), t("Tippe hier für die nächsten Schritte."), "goto-settings", "warn");
     if (b.state === "none") return noticeHtml("bank", t("Bank noch nicht verbunden"), t("Tippe hier, um dein Konto zu verknüpfen."), "goto-settings", "warn");
     if (b.state === "expired") return noticeHtml("bank", t("Bankfreigabe abgelaufen"), t("Einmal bei der Bank bestätigen, dann geht's weiter."), "connect", "warn");
-    if (b.state === "expiring") return noticeHtml("bank", tn(b.days_left, "Bankfreigabe läuft in {n} Tag ab", "Bankfreigabe läuft in {n} Tagen ab"), t("Jetzt kurz erneuern, damit nichts fehlt."), "connect", "warn");
-    return "";
+    const problem = syncProblem(b);
+    let html = "";
+    // Abruf fehlgeschlagen: sichtbar, mit Grund in Klartext; Antippen versucht es nochmal
+    if (problem) html += noticeHtml("refresh", t("Neue Umsätze konnten nicht geladen werden"), `${problem} ${t("Tippen, um es nochmal zu versuchen.")}`, "sync", "fail");
+    if (b.state === "expiring") html += noticeHtml("bank", tn(b.days_left, "Bankfreigabe läuft in {n} Tag ab", "Bankfreigabe läuft in {n} Tagen ab"), t("Jetzt kurz erneuern, damit nichts fehlt."), "connect", "warn");
+    return html;
+  }
+
+  // Grund für einen fehlgeschlagenen Abruf in Klartext (null = letzter Abruf hat geklappt).
+  // Der technische Text der Bank steht weiter unter „Einstellungen → Bank“.
+  function syncProblem(b) {
+    const err = String(b.last_error || "");
+    if (!err || err.startsWith("Kontostände") || b.state === "none" || b.state === "expired") return null;
+    if (/ASPSP_RATE_LIMIT|\b429\b|rate limit/i.test(err)) return t("Die Bank lässt heute keine weiteren Abrufe zu (Tageslimit). In ein paar Stunden klappt es wieder.");
+    if (/\b5\d\d\b|\b400\b|timeout|timed out|connect|network|ASPSP_ERROR|unavailable/i.test(err)) return t("Die Bank ist gerade nicht erreichbar.");
+    return t("Der letzte Abruf hat nicht geklappt.");
+  }
+
+  // „Stand 08:42 · ING“ unter der Kernzahl; älter als 12 Stunden in Warnfarbe
+  function standHtml(r) {
+    const b = state.bank;
+    if (!b.last_sync || b.state === "none") return "";
+    const at = new Date(b.last_sync);
+    const sameDay = at.toDateString() === new Date().toDateString();
+    const time = at.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+    const when = sameDay ? time : `${at.toLocaleDateString(locale, { day: "numeric", month: "short" })}, ${time}`;
+    const old = Date.now() - at.getTime() > 12 * 3600 * 1000;
+    const bank = b.provider === "demo" ? t("Demo-Bank") : b.bank_name || "";
+    let html = `<div class="stand ${old ? "alt" : ""}">${icon("refresh")}<span>${t("Stand {when}", { when })}${bank ? ` · ${esc(bank)}` : ""}</span></div>`;
+    // Liefert die Bank keine Vormerkungen, fehlen Kartenzahlungen, bis sie gebucht sind
+    const f = b.last_fetch;
+    if (r.status === "current" && f && !f.pending && f.newest) {
+      const noon = new Date(today); noon.setHours(12, 0, 0, 0);
+      const days = Math.round((noon - new Date(f.newest + "T12:00:00")) / 86400000);
+      if (days >= 2) html += `<div class="stand">${icon("help")}<span>${t("Kartenzahlungen der letzten Tage fehlen evtl. noch – die Bank meldet sie erst, wenn sie gebucht sind.")}</span></div>`;
+    }
+    return html;
   }
 
   // ------------------------------------------------------------------ Übersicht
@@ -408,6 +444,7 @@
       <div class="sub">${heroLabel}</div>
       <div class="big ${r.budgetLeft >= 0 ? "pos" : "neg"}">${fmt(r.budgetLeft)}</div>
       ${heroNotes.map((n) => `<div class="sub">${n}</div>`).join("")}
+      ${standHtml(r)}
       ${showDays ? `
         <div class="days-head"><span>${t("Pro Tag verfügbar")}</span><span>${tn(r.daysLeftIncl, "noch {n} Tag", "noch {n} Tage")}</span></div>
         <div class="days3">
@@ -545,7 +582,7 @@
           <div class="bubble">${icon(g.cat?.icon || "receipt")}</div>
           <div class="name"><div>${esc(g.name)} <small class="hint">${g.count}×</small></div><div class="bar"><i style="width:${(g.total / max) * 100}%"></i></div></div>
           <div class="amt">${fmt(g.total)}<small>${Math.round((g.total / Math.max(1, T.expense)) * 100)} %</small></div>
-        </button>`).join("") : `<div class="hint">${t("Keine Fixkosten in diesem Zeitraum. Welche Zahlungen als Fixkosten zählen, stellst du unter Mehr → Fixkosten ein.")}</div>`}
+        </button>`).join("") : `<div class="hint">${t("Keine Fixkosten in diesem Zeitraum. Welche Zahlungen als Fixkosten zählen, stellst du unter Einstellungen → Fixkosten ein.")}</div>`}
     </section>`;
   }
 
@@ -1229,7 +1266,7 @@
     if (updatesInfo?.anfrage || updatesInfo?.status?.laeuft) watchUpdates();
   }
 
-  // Unterseiten von „Mehr“: null (Hauptseite), "categories", "rules", "fixed", "widget"
+  // Unterseiten von „Einstellungen“: null (Hauptseite), "categories", "rules", "fixed", "widget"
   const SETTINGS_PAGES = {
     categories: () => t("Kategorien"),
     rules: () => t("Gelernte Regeln"),
@@ -1309,7 +1346,7 @@
       ${themeCard()}`;
   }
 
-  // Mehr → Kategorien: Antippen öffnet die Kategorie (Ersparnis/Folgemonat, löschen)
+  // Einstellungen → Kategorien: Antippen öffnet die Kategorie (Ersparnis/Folgemonat, löschen)
   function settingsCategories() {
     const cats = state.categories.filter((c) => c.kind === state.settingsKind);
     return `
@@ -1359,7 +1396,7 @@
     });
   }
 
-  // Mehr → Gelernte Regeln
+  // Einstellungen → Gelernte Regeln
   function settingsRules() {
     const userRules = rulesCache.filter((r) => r.source === "user");
     const starterRules = rulesCache.filter((r) => r.source !== "user");
@@ -1370,7 +1407,7 @@
       ${starterRules.length ? `<section class="card"><details><summary>${t("{n} Start-Regeln anzeigen", { n: starterRules.length })}</summary>${starterRules.map(ruleRow).join("")}</details></section>` : ""}`;
   }
 
-  // Mehr → Fixkosten: erkannte Fixkosten und regelmäßige Einnahmen, korrigierbar
+  // Einstellungen → Fixkosten: erkannte Fixkosten und regelmäßige Einnahmen, korrigierbar
   function settingsFixed() {
     const rec = A.recurringList(state.ctx);
     const fixedExp = rec.filter((r) => r.kind === "expense" && r.fixed);
@@ -1666,7 +1703,7 @@
     const tab = e.target.closest("[data-tab]");
     if (tab) {
       state.view = tab.dataset.tab;
-      state.settingsPage = null;   // „Mehr“ öffnet immer die Hauptseite
+      state.settingsPage = null;   // „Einstellungen“ öffnet immer die Hauptseite
       widgetNewKey = null;
       window.scrollTo(0, 0);
       render();
@@ -1817,9 +1854,9 @@
 
   function syncResultText(r) {
     if (!r.ok) {
-      if (r.reason === "expired") return t("Bankfreigabe abgelaufen – bitte unter „Mehr“ neu verbinden");
+      if (r.reason === "expired") return t("Bankfreigabe abgelaufen – bitte unter „Einstellungen“ neu verbinden");
       if (r.reason === "not_connected") return t("Noch keine Bank verbunden");
-      if (r.reason === "not_configured") return t("Bank noch nicht eingerichtet – siehe „Mehr“");
+      if (r.reason === "not_configured") return t("Bank noch nicht eingerichtet – siehe „Einstellungen“");
       return t("Abruf fehlgeschlagen – später noch einmal versuchen");
     }
     const parts = [];

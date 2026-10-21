@@ -27,7 +27,8 @@ def test_schluessel_und_daten(tmp_path, monkeypatch):
         body = ok.json()
         assert body["snapshot"]["budget_left_cents"] == 82061 and body["snapshot"]["computed_at"]
         assert set(body) == {"snapshot", "bank"}            # keine Umsätze, keine Konten
-        assert set(body["bank"]) == {"state", "days_left", "last_sync"}
+        assert set(body["bank"]) == {"state", "days_left", "last_sync", "error"}
+        assert body["bank"]["error"] is False
 
         assert client.get("/api/widget/data", headers={"Authorization": "Bearer falsch"}).status_code == 401
         assert client.get("/api/widget/data", headers={"Authorization": key}).status_code == 401
