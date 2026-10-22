@@ -6,7 +6,7 @@ window.API = (() => {
   // Standardkategorien in der Sprache der Oberfläche (die Demo-Datenbank ist deutsch)
   const cats = D.categories.map((c) => ({ ...c, name: I18N.t(c.name) }));
   const rules = D.rules.map((r) => ({ ...r }));
-  const settings = { shift_from_day: 15, large_expense_cents: 25000 };
+  const settings = { shift_from_day: 15, large_expense_cents: 25000, review_days: 3, dismissed_hints: [] };
   const overrides = new Map();
   let nextAcc = 100, nextVal = 1000;
   const accounts = (D.accounts || []).map((a) => ({ ...a, values: a.values.map((v) => ({ ...v })) }));
@@ -95,7 +95,13 @@ window.API = (() => {
       return ok({ ...view(t), also_assigned: also });
     },
     settings: () => ok(settings),
-    updateSettings: (d) => { Object.assign(settings, d); recompute(); return ok(settings); },
+    updateSettings: (d) => {
+      const { dismiss_hint: hint, ...rest } = d;
+      Object.assign(settings, rest);
+      if (hint) settings.dismissed_hints = [...settings.dismissed_hints.filter((h) => h !== hint), hint].slice(-200);
+      recompute();
+      return ok(settings);
+    },
     accounts: () => ok(accounts),
     createAccount: (d) => {
       const icons = { giro: "bank", savings: "piggy", depot: "trend", loan: "receipt" };

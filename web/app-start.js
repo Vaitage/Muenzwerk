@@ -47,6 +47,16 @@ document.addEventListener("click", async (e) => {
     state.view = "stats"; state.statsPeriod = "month"; state.statsMonth = state.month;
     window.scrollTo(0, 0); return render();
   }
+  if (act === "goto-review") {
+    state.view = "stats"; state.statsPeriod = "month"; state.statsMonth = e.target.closest("[data-review-month]").dataset.reviewMonth;
+    window.scrollTo(0, 0); return render();
+  }
+  if (act === "goto-stats-cats") {
+    state.view = "stats"; state.statsPeriod = "month"; state.statsMonth = state.month; state.statsExpTab = "cat";
+    render();
+    document.getElementById("cat-card-stats")?.scrollIntoView({ block: "start" });
+    return;
+  }
   if (act === "goto-inbox") { state.view = "transactions"; state.txFilter = "open"; window.scrollTo(0, 0); return render(); }
   if (act === "goto-settings") { state.view = "settings"; state.settingsPage = null; render(); return viewSettingsAsync(); }
 
@@ -105,6 +115,24 @@ document.addEventListener("click", async (e) => {
     await API.updateSettings({ large_expense_cents: next });
     return reload();
   }
+
+  const rv = e.target.closest("[data-review]");
+  if (rv) {
+    const next = Math.min(7, Math.max(0, (state.settings.review_days ?? 3) + Number(rv.dataset.review)));
+    await API.updateSettings({ review_days: next });
+    return reload();
+  }
+  const dh = e.target.closest("[data-dismiss]");
+  if (dh) {
+    e.stopPropagation();
+    const id = dh.dataset.dismiss;
+    state.settings.dismissed_hints = [...(state.settings.dismissed_hints || []), id];
+    render();
+    try { await API.updateSettings({ dismiss_hint: id }); } catch (err) { toast(err.message); }
+    return;
+  }
+  const hint = e.target.closest("[data-hint]");
+  if (hint) return openHint(hint.dataset.hint);
 
   const dr = e.target.closest("[data-delrule]");
   if (dr) { await API.deleteRule(Number(dr.dataset.delrule)); toast(t("Regel gelöscht")); return viewSettingsAsync(); }

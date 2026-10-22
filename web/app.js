@@ -5,7 +5,7 @@
 
 // Version dieser App-Dateien (gleich wie __version__ in app/__init__.py). Weicht die
 // Version des Servers ab, zeigt das Handy noch eine zwischengespeicherte Fassung.
-const APP_VERSION = "1.12.0";
+const APP_VERSION = "1.13.0";
 const A = window.Analytics;
 const { t, tn, ord, locale } = window.I18N;
 
@@ -52,11 +52,29 @@ const state = {
   categories: [],
   transactions: [],
   overrides: {},
-  settings: { shift_from_day: 15, large_expense_cents: 25000 },
+  settings: { shift_from_day: 15, large_expense_cents: 25000, review_days: 3, dismissed_hints: [] },
   bank: { state: "none" },
   ctx: null,
 };
 const catById = (id) => state.categories.find((c) => c.id === id);
+// Farbe je Kategorie (CSS-Klassen .hue1–.hue8): nach Symbol, damit Ähnliches gleich aussieht
+// (Wohnen blau, Kredit/Versicherung violett, Mobilität orange, Einkauf türkis …); sonst fest nach Kategorie-Nummer.
+const HUE_BY_ICON = {
+  home: 1, graduation: 1, bank: 7, receipt: 7, car: 2, plane: 2, basket: 3, cup: 3, plug: 4, wrench: 4, laptop: 4, phone: 4,
+  utensils: 5, gift: 5, smile: 5, shirt: 5, piggy: 6, coins: 6, wallet: 6, briefcase: 6, trend: 6, undo: 6,
+  dumbbell: 6, shield: 7, headphones: 5, tag: 7, sparkle: 7, stethoscope: 8, heart: 8, paw: 8,
+};
+// Vorschlag für eine offene Zahlung (A.suggestCategory) als Text: Kategorie + Begründung
+function suggestionFor(tx) {
+  const s = A.suggestCategory(tx, state.ctx);
+  const cat = s && catById(s.categoryId);
+  if (!cat) return null;
+  const why = s.reason === "payee" ? tn(s.count, "wie {n} Zahlung an diesen Empfänger", "wie {n} Zahlungen an diesen Empfänger")
+    : s.reason === "similar" ? tn(s.count, "ähnlich wie {n} zugeordnete Zahlung", "ähnlich wie {n} zugeordnete Zahlungen")
+    : t("typisch für diese Kategorie");
+  return { cat, why };
+}
+const hueCls = (cat) => (cat ? `hue${HUE_BY_ICON[cat.icon] || ((Number(cat.id) || 0) % 8) + 1}` : "none");
 const openCount = () => state.transactions.filter((t) => t.category_id == null).length;
 
 async function loadAll() {
@@ -361,6 +379,31 @@ function renderTop() {
       </div>` : ""}`;
 }
 
+// Große Beträge zählen kurz hoch, wenn sie zum ersten Mal oder mit neuem Wert erscheinen
+// (nicht bei jedem Neuzeichnen, nicht bei „Bewegung reduzieren“). Text bleibt immer der Endwert,
+// Bildschirmleser lesen nur den.
+const countShown = new Map();
+function countUp(root) {
+  const calm = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  for (const el of root.querySelectorAll("[data-count]")) {
+    const to = Number(el.dataset.count), key = el.dataset.countKey;
+    const from = countShown.has(key) ? countShown.get(key) : 0;
+    countShown.set(key, to);
+    if (calm || from === to || !Number.isFinite(to)) continue;
+    const final = el.textContent;
+    el.setAttribute("aria-label", final);
+    const start = performance.now(), dur = 650;
+    const step = (now) => {
+      if (!el.isConnected) return;
+      const p = Math.min(1, (now - start) / dur);
+      const e = 1 - Math.pow(1 - p, 3);              // schnell los, sanft aus
+      el.textContent = p < 1 ? fmt(Math.round(from + (to - from) * e)) : final;
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+}
+
 function render() {
   renderTop();
   renderTabbar();
@@ -372,6 +415,7 @@ function render() {
       overview: viewOverview, transactions: viewTransactions, stats: viewStats, wealth: viewWealth, settings: viewSettings,
     }[state.view]();
     wireCharts(main);
+    countUp(main);
     if (syncRunning) setSyncButtons(true);   // Knopf bleibt im Lade-Zustand
   } catch (err) {
     console.error(err);

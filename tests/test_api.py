@@ -226,3 +226,16 @@ def test_feste_abrufzeiten():
     assert seconds_until_next(datetime(2026, 10, 22, 10, 0, 0), times) == 4 * 3600          # 10:00 gerade vorbei -> 14:00
     assert seconds_until_next(datetime(2026, 10, 22, 21, 0, 0), times) == 9.5 * 3600        # morgen 06:30
     assert parse_sync_times("") == []
+
+
+def test_rueckblick_und_weggeklickte_hinweise(tmp_path, monkeypatch):
+    with make_client(tmp_path, monkeypatch) as client:
+        h = {"X-Haushaltsbuch": "1"}
+        s = client.get("/api/settings").json()
+        assert s["review_days"] == 3 and s["dismissed_hints"] == []
+        assert client.patch("/api/settings", headers=h, json={"review_days": 0}).json()["review_days"] == 0
+        assert client.patch("/api/settings", headers=h, json={"review_days": 8}).status_code == 422
+        for hint in ("review:2026-10", "dup:a:b", "review:2026-10"):
+            s = client.patch("/api/settings", headers=h, json={"dismiss_hint": hint}).json()
+        assert s["dismissed_hints"] == ["dup:a:b", "review:2026-10"]
+        assert client.patch("/api/settings", headers=h, json={"dismiss_hint": "<script>"}).status_code == 422

@@ -1,6 +1,7 @@
 """Web-Server: liefert die App aus und stellt die Schnittstelle bereit."""
 
 import asyncio
+import json
 import logging
 from datetime import datetime, timedelta
 import os
@@ -387,6 +388,9 @@ def undo(conn=Depends(get_db)):
 class SettingsPatch(BaseModel):
     shift_from_day: int | None = Field(default=None, ge=1, le=31)
     large_expense_cents: int | None = Field(default=None, ge=1000, le=10_000_000)
+    review_days: int | None = Field(default=None, ge=0, le=7)
+    # Kennung eines weggeklickten Hinweises, z. B. "review:2026-10" oder "dup:abc123"
+    dismiss_hint: str | None = Field(default=None, pattern=r"^[A-Za-z0-9:_.\-]{1,80}$")
 
 
 def _put_setting(conn, key: str, value) -> None:
@@ -407,6 +411,8 @@ def get_settings(conn=Depends(get_db)):
     return {
         "shift_from_day": int(db.get_setting(conn, "shift_from_day")),
         "large_expense_cents": int(db.get_setting(conn, "large_expense_cents")),
+        "review_days": int(db.get_setting(conn, "review_days")),
+        "dismissed_hints": json.loads(db.get_setting(conn, "dismissed_hints")),
     }
 
 
@@ -417,6 +423,11 @@ def update_settings(body: SettingsPatch, conn=Depends(get_db)):
         ledger.recompute_budget_months(conn)
     if body.large_expense_cents is not None:
         _put_setting(conn, "large_expense_cents", body.large_expense_cents)
+    if body.review_days is not None:
+        _put_setting(conn, "review_days", body.review_days)
+    if body.dismiss_hint:
+        hints = [h for h in json.loads(db.get_setting(conn, "dismissed_hints")) if h != body.dismiss_hint]
+        _put_setting(conn, "dismissed_hints", json.dumps((hints + [body.dismiss_hint])[-200:]))
     return get_settings(conn)
 
 

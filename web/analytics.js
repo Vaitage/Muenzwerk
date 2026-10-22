@@ -716,10 +716,165 @@
     return { year: String(year), offset: (new Date(`${year}-01-01T12:00:00`).getDay() + 6) % 7, days: list, weekdays, top: max };
   }
 
+
+  // ------------------------------------------------------------ Kategorie-Vorschläge
+  // Für noch offene Zahlungen: wahrscheinlichste Kategorie aus ähnlichen, schon zugeordneten
+  // Zahlungen (gleiche Richtung). Wörter aus Empfänger und Verwendungszweck werden verglichen;
+  // Wörter, die bei vielen verschiedenen Kategorien vorkommen (z. B. „gmbh“, „sumup“), zählen
+  // kaum. Reicht das nicht, helfen ein paar typische Begriffe (nach Symbol der Kategorie).
+  const STOP = new Set(("gmbh ag kg ohg ug mbh co sarl s.a r.l eu de com www und the inc ltd llc sumup paypal zettle " +
+    "sagt danke kartenzahlung karte lastschrift ueberweisung überweisung dauerauftrag gutschrift einzug sepa visa " +
+    "debit mastercard girocard ref eref mref mandat end kref bestellung order rechnung kunde kundennr nr vom fuer für " +
+    "online shop markt filiale europe services payment payments zahlung").split(" "));
+  const KEYWORDS = [
+    [/b(ä|ae|a)cker|backshop|backstube|brot/, "basket"],
+    [/apotheke|arzt|praxis|klinik|optik|zahn/, "stethoscope"],
+    [/tankstelle|\baral\b|\bshell\b|\besso\b|\bjet\b|\btotalenergies\b|parkhaus|parkster|easypark|db vertrieb|\bbahn\b|flixbus|\bbvg\b|\bmvg\b|\bhvv\b|\bkvb\b|\buber\b|\bbolt\b/, "car"],
+    [/caf(é|e)|coffee|kaffee|restaurant|pizza|burger|kebab|döner|doener|sushi|mcdonald|lieferando|wolt/, "utensils"],
+    [/\bkino|netflix|spotify|disney|\bdazn\b|\bsteam\b|playstation|xbox|nintendo|audible|eventim/, "headphones"],
+    [/zalando|h&m|primark|zara|c&a|about you|deichmann|snipes/, "shirt"],
+    [/fressnapf|futterhaus|\bzoo\b|tierarzt/, "paw"],
+    [/hotel|booking\.com|airbnb|lufthansa|ryanair|eurowings|condor|\btui\b|expedia/, "plane"],
+    [/stromanbieter|\bstrom\b|\bgas\b|stadtwerke|telekom|vodafone|\bo2\b|1&1|rundfunk|beitragsservice/, "plug"],
+  ];
+  const words = (t) => [...new Set(norm(`${t.counterparty || ""} ${t.purpose || ""}`)
+    .replace(/[^\p{L}\p{N}&]+/gu, " ").split(" ").filter((w) => w.length >= 3 && !/^\d+$/.test(w) && !STOP.has(w)))];
+
+  function suggestionIndex(ctx) {
+    if (ctx._suggest) return ctx._suggest;
+    const idx = { expense: new Map(), income: new Map(), byPayee: new Map() };
+    for (const t of ctx.transactions) {
+      if (!t.category_id || !ctx.catMap.has(t.category_id)) continue;
+      const dir = t.amount_cents > 0 ? "income" : "expense";
+      for (const w of words(t)) {
+        const m = idx[dir];
+        if (!m.has(w)) m.set(w, new Map());
+        m.get(w).set(t.category_id, (m.get(w).get(t.category_id) || 0) + 1);
+      }
+      const key = `${dir}|${counterpartyKey(t.counterparty)}`;
+      if (!idx.byPayee.has(key)) idx.byPayee.set(key, new Map());
+      idx.byPayee.get(key).set(t.category_id, (idx.byPayee.get(key).get(t.category_id) || 0) + 1);
+    }
+    return (ctx._suggest = idx);
+  }
+
+  // -> { categoryId, reason: "payee" | "similar" | "keyword", count } oder null
+  function suggestCategory(t, ctx) {
+    if (!t || t.category_id) return null;
+    const dir = t.amount_cents > 0 ? "income" : "expense";
+    const idx = suggestionIndex(ctx);
+    const best = (m) => [...m.entries()].sort((a, b) => b[1] - a[1])[0];
+    // 1. Gleicher Empfänger, schon zugeordnet (z. B. andere Schreibweise einer Filiale)
+    const payee = idx.byPayee.get(`${dir}|${counterpartyKey(t.counterparty)}`);
+    if (counterpartyKey(t.counterparty) && payee) {
+      const [cat, cnt] = best(payee);
+      const all = [...payee.values()].reduce((a, b) => a + b, 0);
+      if (cnt / all >= 0.6) return { categoryId: cat, reason: "payee", count: cnt };
+    }
+    // 2. Ähnliche Wörter
+    const score = new Map(), support = new Map();
+    for (const w of words(t)) {
+      const m = idx[dir].get(w);
+      if (!m) continue;
+      const total = [...m.values()].reduce((a, b) => a + b, 0);
+      const spread = 1 / m.size;                    // Wort bei vielen Kategorien → wenig Gewicht
+      for (const [cat, cnt] of m) {
+        score.set(cat, (score.get(cat) || 0) + (cnt / total) * spread);
+        support.set(cat, (support.get(cat) || 0) + cnt);
+      }
+    }
+    if (score.size) {
+      const [cat, s] = best(score);
+      const sum = [...score.values()].reduce((a, b) => a + b, 0);
+      if (s / sum >= 0.6 && s >= 0.5 && support.get(cat) >= 2) return { categoryId: cat, reason: "similar", count: support.get(cat) };
+    }
+    // 3. Typische Begriffe (nur Ausgaben; Kategorie mit passendem Symbol)
+    if (dir === "expense") {
+      const hay = ` ${norm(`${t.counterparty || ""} ${t.purpose || ""}`)} `;
+      for (const [re, ic] of KEYWORDS) {
+        if (!re.test(hay)) continue;
+        const cat = [...ctx.catMap.values()].find((c) => c.icon === ic && c.kind === "expense" && !c.is_savings);
+        if (cat) return { categoryId: cat.id, reason: "keyword", count: 0 };
+      }
+    }
+    return null;
+  }
+
+  // ------------------------------------------------------------ Auffälligkeiten
+  // Für den laufenden Monat:
+  //  - Kategorie deutlich über dem Üblichen: Ausgaben bis heute im Vergleich zum Schnitt der
+  //    letzten (bis zu 6) Monate bis zum selben Tag. Fixkosten zählen nicht (die sind erwartet).
+  //  - Mögliche doppelte Abbuchung: gleicher Empfänger, gleicher Betrag (ab 10 €), ≤ 3 Tage
+  //    auseinander, in den letzten 30 Tagen.
+  // Jede Meldung hat eine feste Kennung (id), damit sie sich wegklicken lässt.
+  const ANOMALY = { minRatio: 1.4, minExtra: 3000, minMonths: 3, lookback: 6, dupMin: 1000, dupDays: 3, dupWindow: 30 };
+
+  function anomalies(ctx) {
+    const out = [];
+    const m = ctx.currentMonth, day = ctx.todayDay;
+    const upToDay = (month) => (ctx.byMonth.get(month) || []).filter((t) =>
+      t.amount_cents < 0 && !ctx.isSavings(t) && t.category_id && ctx.classOf(t) !== "fixed"
+      && t.booking_date.slice(0, 7) === month && Number(t.booking_date.slice(8, 10)) <= day);
+    const sumBy = (list) => { const s = new Map(); for (const t of list) s.set(t.category_id, (s.get(t.category_id) || 0) - t.amount_cents); return s; };
+    const now = sumBy(upToDay(m));
+    const past = [];
+    for (let i = 1; i <= ANOMALY.lookback; i++) {
+      const pm = addMonths(m, -i);
+      if (pm < ctx.firstMonth) break;
+      past.push(sumBy(upToDay(pm)));
+    }
+    if (past.length >= ANOMALY.minMonths) {
+      for (const [cat, cur] of now) {
+        const avg = past.reduce((a, s) => a + (s.get(cat) || 0), 0) / past.length;
+        if (cur >= avg * ANOMALY.minRatio && cur - avg >= ANOMALY.minExtra) {
+          out.push({ id: `cat:${cat}:${m}`, kind: "category", categoryId: cat, current: cur, usual: Math.round(avg),
+            percent: avg > 0 ? Math.round((cur / avg - 1) * 100) : null });
+        }
+      }
+      out.sort((a, b) => (b.current - b.usual) - (a.current - a.usual));
+    }
+    // Doppelte Abbuchungen
+    const since = isoOf(new Date(new Date(ctx.todayIso + "T12:00:00").getTime() - ANOMALY.dupWindow * 864e5));
+    const recent = ctx.transactions.filter((t) => t.amount_cents <= -ANOMALY.dupMin && t.booking_date >= since && !ctx.isSavings(t))
+      .sort((a, b) => a.booking_date.localeCompare(b.booking_date));
+    const seen = new Set();
+    for (let i = 0; i < recent.length; i++) {
+      for (let j = i + 1; j < recent.length; j++) {
+        const a = recent[i], b = recent[j];
+        const gap = (new Date(b.booking_date) - new Date(a.booking_date)) / 864e5;
+        if (gap > ANOMALY.dupDays) break;
+        if (a.amount_cents !== b.amount_cents || !counterpartyKey(a.counterparty)
+          || counterpartyKey(a.counterparty) !== counterpartyKey(b.counterparty)) continue;
+        if (a.pending !== b.pending) continue;       // Vormerkung + Buchung derselben Zahlung
+        if (seen.has(a.id) || seen.has(b.id)) continue;
+        seen.add(a.id); seen.add(b.id);
+        out.push({ id: `dup:${a.id}:${b.id}`, kind: "duplicate", amount: -a.amount_cents, counterparty: a.counterparty, dates: [a.booking_date, b.booking_date], ids: [a.id, b.id] });
+      }
+    }
+    return out;
+  }
+
+  // ------------------------------------------------------------ Monatsrückblick
+  // Rückblick auf den Vormonat (für die ersten Tage eines neuen Monats)
+  function monthReview(ctx, month = addMonths(ctx.currentMonth, -1)) {
+    const list = ctx.byMonth.get(month) || [];
+    if (!list.length) return null;
+    const r = monthReport(month, ctx);
+    const prev = ctx.byMonth.has(addMonths(month, -1)) ? monthReport(addMonths(month, -1), ctx) : null;
+    const biggest = list.filter((t) => t.amount_cents < 0 && !ctx.isSavings(t))
+      .reduce((a, t) => (!a || t.amount_cents < a.amount_cents ? t : a), null);
+    const top = r.byCategory.find((c) => c.id) || null;
+    return {
+      month, left: r.totals.net, income: r.totals.income, expense: r.totals.expense, saved: r.totals.savings,
+      biggest, top,
+      expenseChange: prev && prev.totals.expense > 0 ? Math.round((r.totals.expense / prev.totals.expense - 1) * 100) : null,
+    };
+  }
+
   return {
     RECURRING, norm, addMonths, daysIn, isoOf, ibanKey, spendDays, heatMonth, heatYear, goalsReport,
     createContext, classify, recurringKey, totalsFor, monthTotals, monthReport, stats, cumulative, recurringList,
-    savingsOverview, counterpartyKey,
+    savingsOverview, counterpartyKey, suggestCategory, anomalies, monthReview,
     linkedTransfers, accountValueAt, loanInfo, wealth, searchTransactions,
   };
 });

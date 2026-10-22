@@ -294,3 +294,65 @@ test("Sparziel: hinter dem Plan → zu spät und höhere Rate ab nächstem Monat
   assert.ok(r.lateBy >= 2);
   assert.ok(r.needNext > r.rate);
 });
+
+test("Kategorie-Vorschlag: gleicher Empfänger, ähnliche Wörter, typische Begriffe", () => {
+  const cats = [...categories, { id: 6, name: "Restaurant", kind: "expense", icon: "utensils" },
+    { id: 7, name: "Gesundheit", kind: "expense", icon: "stethoscope" }];
+  const list = [
+    tx("2026-10-01", -2300, "REWE Markt GmbH", 2), tx("2026-10-03", -1800, "REWE Markt GmbH", 2),
+    tx("2026-10-02", -900, "SumUp *Cafe Lotte", 6), tx("2026-10-04", -1100, "SumUp *Cafe Lotte Filiale 2", 6),
+    tx("2026-10-05", -700, "SumUp *Baeckerei Kraus", 2),
+  ];
+  const ctx = A.createContext({ transactions: list, categories: cats, today: "2026-10-20" });
+  const open = (who, amount = -1000) => ({ ...tx("2026-10-20", amount, who, null) });
+  // gleicher Empfänger (andere Schreibweise)
+  assert.deepEqual(A.suggestCategory(open("REWE Markt GmbH 123"), ctx), { categoryId: 2, reason: "payee", count: 2 });
+  // ähnliche Wörter: „cafe lotte“ – „sumup“ allein zählt nicht
+  assert.equal(A.suggestCategory(open("SumUp *Cafe Lotte Hbf"), ctx).categoryId, 6);
+  assert.equal(A.suggestCategory(open("SumUp *Schreinerei Holz"), ctx), null);
+  // typischer Begriff, ohne Vorgeschichte
+  assert.deepEqual(A.suggestCategory(open("Stern-Apotheke"), ctx), { categoryId: 7, reason: "keyword", count: 0 });
+  // „gas“ nur als Wort, nicht in „Gasthaus“
+  assert.equal(A.suggestCategory(open("Gasthaus Krone"), ctx), null);
+  // schon zugeordnet oder Einnahme ohne Vorgeschichte: kein Vorschlag
+  assert.equal(A.suggestCategory({ ...open("REWE"), category_id: 2 }, ctx), null);
+  assert.equal(A.suggestCategory(open("Stern-Apotheke", 500), ctx), null);
+});
+
+test("Auffälligkeiten: Kategorie über dem Üblichen bis zum selben Tag, doppelte Abbuchung", () => {
+  const list = sample();
+  // Oktober bis zum 14.: Lebensmittel 2× 30 € (05., 12.) wie sonst + Extra-Einkäufe
+  list.push(tx("2026-10-08", -4000, "Kaufland", 2), tx("2026-10-09", -3500, "Kaufland", 2));
+  // doppelt: zweimal 49,90 an denselben Empfänger, 1 Tag auseinander
+  list.push(tx("2026-10-10", -4990, "Fitness Studio", 5), tx("2026-10-11", -4990, "Fitness Studio", 5));
+  // kein Doppel: gleicher Betrag, aber 9 Tage auseinander / unter 10 €
+  list.push(tx("2026-10-01", -2000, "Kino", 5), tx("2026-10-10", -2000, "Kino", 5));
+  list.push(tx("2026-10-12", -500, "Bäcker", 2), tx("2026-10-13", -500, "Bäcker", 2));
+  const ctx = A.createContext({ transactions: list, categories, today: "2026-10-14" });
+  const hints = A.anomalies(ctx);
+  const cat = hints.find((h) => h.kind === "category" && h.categoryId === 2);
+  // bis zum 14.: sonst 2 × 30 € = 60 €; jetzt 60 + 75 + 10 = 145 €
+  assert.equal(cat.usual, 6000);
+  assert.equal(cat.current, 14500);
+  assert.equal(cat.id, "cat:2:2026-10");
+  const dups = hints.filter((h) => h.kind === "duplicate");
+  assert.equal(dups.length, 1);
+  assert.equal(dups[0].amount, 4990);
+  // Ohne genug Vormonate keine Kategorie-Meldung
+  const young = A.createContext({ transactions: list.filter((t) => t.budget_month >= "2026-09"), categories, today: "2026-10-14" });
+  assert.equal(A.anomalies(young).filter((h) => h.kind === "category").length, 0);
+});
+
+test("Monatsrückblick auf den Vormonat", () => {
+  const ctx = ctxFor("2026-10-02");
+  const r = A.monthReview(ctx);
+  assert.equal(r.month, "2026-09");
+  assert.equal(r.income, 285000);
+  assert.equal(r.biggest.counterparty, "Hausverwaltung");
+  assert.equal(r.top.name, "Wohnen");
+  // September 85000 + 9000 + 49900 Ausgaben, August 85000 + 9000
+  assert.equal(r.expense, 143900);
+  assert.equal(r.expenseChange, Math.round((143900 / 94000 - 1) * 100));
+  assert.equal(r.left, 285000 - 143900 - 20000);
+  assert.equal(A.monthReview(ctx, "2025-01"), null);
+});

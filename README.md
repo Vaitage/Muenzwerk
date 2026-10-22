@@ -65,6 +65,12 @@ Taken from the demo with made-up data.
   the monthly instalment into your daily budget and tells you, from how you actually spend, whether you'll make it.
 - **"Your salary is in" notification** – as soon as a fetch finds your salary, your phone gets a
   notification (home-screen app, iOS 16.4+). Encrypted end to end; the amount can be hidden.
+- **Category suggestions** – for new payees Münzwerk suggests the most likely category from similar
+  payments; accept it with one tap or by swiping left in the list (swipe also marks fixed costs).
+- **Unusual spending** – a hint when a category is clearly above what you usually spend by this day of
+  the month, or when the same amount went to the same payee twice within a few days. Dismissable.
+- **Monthly review** – for the first days of a new month: what was left, biggest expense, comparison
+  with the month before, savings goals. How many days it stays is up to you; dismissable.
 - **Search** – payee, reference, category, amount (e.g. `39.95`) or date, with totals
   per month, year or overall.
 - **Bank access monitoring** – PSD2 access expires after 90–180 days. Münzwerk shows

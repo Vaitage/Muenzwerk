@@ -21,6 +21,7 @@ function viewOverview() {
   const T = r.totals;
   const open = openCount();
   let html = bankNotices();
+  if (r.status === "current") html += reviewCard();
 
   // Übrig im Monat, darunter Tagesbudget mit 3-Tage-Vorschau
   const heroLabel = r.status === "past" ? t("Übrig am Ende vom {month}", { month: monthName(r.month) }) : r.status === "future" ? t("Geplant übrig im {month}", { month: monthName(r.month) }) : t("Übrig bis Monatsende");
@@ -37,7 +38,7 @@ function viewOverview() {
     </div>`;
   html += `<section class="card hero">
     <div class="sub">${heroLabel}</div>
-    <div class="big ${r.budgetLeft >= 0 ? "pos" : "neg"}">${fmt(r.budgetLeft)}</div>
+    <div class="big ${r.budgetLeft >= 0 ? "pos" : "neg"}" data-count="${r.budgetLeft}" data-count-key="left:${r.month}">${fmt(r.budgetLeft)}</div>
     ${showDays ? `<div class="per-day">${t("{amount}/Tag", { amount: fmt(r.preview[0].daily) })} · ${tn(r.daysLeftIncl, "noch {n} Tag", "noch {n} Tage")}</div>` : ""}
     ${bar}
     ${standHtml(r)}
@@ -60,6 +61,8 @@ function viewOverview() {
     html += `<button class="inbox-line" data-action="goto-inbox">${icon("inbox")}
       <span class="grow">${tn(open, "{n} Zahlung wartet auf eine Kategorie", "{n} Zahlungen warten auf eine Kategorie")}</span>${icon("chevronRight")}</button>`;
   }
+
+  if (r.status === "current") html += anomalyCards();
 
   // Prognose bis Monatsende
   const actual = r.series.actual.map((p) => ({ x: p.day, y: p.value }));
@@ -112,18 +115,108 @@ function viewOverview() {
     </button>
   </section>`;
 
-  html += categoryCard(r.byCategory, T.expense, t("Ausgaben nach Kategorie"));
+  html += topCategories(r.byCategory, T.expense);
   return html;
+}
+
+// ------------------------------------------------------------------ Rückblick und Auffälligkeiten
+const dismissed = (id) => (state.settings.dismissed_hints || []).includes(id);
+const closeBtn = (id) => `<button class="hint-close" data-dismiss="${esc(id)}" aria-label="${t("Ausblenden")}">✕</button>`;
+
+// Zum Monatsanfang: Rückblick auf den Vormonat (so viele Tage wie eingestellt, wegklickbar)
+function reviewCard() {
+  const days = state.settings.review_days ?? 3;
+  if (!days || state.ctx.todayDay > days) return "";
+  const rv = A.monthReview(state.ctx);
+  if (!rv || dismissed(`review:${rv.month}`)) return "";
+  const goals = (state.goalRep?.goals || []).filter((g) => !g.reached || g.saved);
+  const line = (label, value, cls = "") => `<div class="line-row"><span>${label}</span><span class="${cls}">${value}</span></div>`;
+  return `<section class="card review">
+    <div class="review-head"><h2>${icon("sparkle", "ic-s")} ${t("Rückblick {month}", { month: monthName(rv.month) })}</h2>${closeBtn(`review:${rv.month}`)}</div>
+    <div class="review-big ${rv.left >= 0 ? "pos" : "neg"}">${rv.left >= 0 ? "+" : ""}${fmt(rv.left)}</div>
+    <div class="hint" style="text-align:center;margin-bottom:8px">${rv.left >= 0 ? t("übrig geblieben") : t("mehr ausgegeben als eingenommen")}</div>
+    ${line(t("Ausgaben"), `${fmt(rv.expense)}${rv.expenseChange !== null ? ` <small class="${rv.expenseChange > 0 ? "neg" : "pos"}">${rv.expenseChange > 0 ? "▲" : "▼"} ${Math.abs(rv.expenseChange)} %</small>` : ""}`)}
+    ${rv.saved > 0 ? line(t("Aufs Sparkonto"), fmt(rv.saved)) : ""}
+    ${rv.biggest ? line(t("Größte Ausgabe"), `<span class="ell">${esc(rv.biggest.counterparty || t("Unbekannt"))}</span> · ${fmt0(-rv.biggest.amount_cents)}`) : ""}
+    ${rv.top ? line(t("Meiste Ausgaben"), `<span class="ell">${esc(rv.top.name)}</span> · ${fmt0(rv.top.total)}`) : ""}
+    ${goals.map((g) => line(esc(g.goal.name), `${fmt0(g.saved)} / ${fmt0(g.goal.target_cents)}`)).join("")}
+    <button class="navrow after-groups" data-action="goto-review" data-review-month="${rv.month}">
+      <div class="bubble">${icon("chart")}</div><div class="grow">${t("Ganzen Monat ansehen")}</div>${icon("chevronRight")}
+    </button>
+  </section>`;
+}
+
+function anomalyText(h) {
+  if (h.kind === "category") {
+    const c = catById(h.categoryId);
+    return {
+      title: t("{name} höher als sonst", { name: c ? c.name : t("Kategorie") }),
+      text: t("{now} bis heute – sonst um diese Zeit etwa {usual}", { now: fmt0(h.current), usual: fmt0(h.usual) })
+        + (h.percent !== null ? ` (+${h.percent} %)` : ""),
+      cat: c,
+    };
+  }
+  return {
+    title: t("Doppelt abgebucht?"),
+    text: t("{amount} an {name}, zweimal innerhalb von {days} Tagen", { amount: fmt(h.amount), name: h.counterparty, days: 3 }),
+  };
+}
+
+function anomalyCards() {
+  const list = A.anomalies(state.ctx).filter((h) => !dismissed(h.id)).slice(0, 3);
+  return list.map((h) => {
+    const x = anomalyText(h);
+    return `<div class="hint-card">
+      <button class="hint-main" data-hint="${esc(h.id)}">
+        <div class="bubble ${x.cat ? hueCls(x.cat) : "warnb"}">${icon(x.cat ? x.cat.icon : "receipt")}</div>
+        <div class="grow"><b>${esc(x.title)}</b><span>${esc(x.text)}</span></div>
+      </button>
+      ${closeBtn(h.id)}
+    </div>`;
+  }).join("");
+}
+
+// Antippen einer Auffälligkeit: die betroffenen Buchungen zeigen
+function openHint(id) {
+  const h = A.anomalies(state.ctx).find((x) => x.id === id);
+  if (!h) return;
+  const x = anomalyText(h);
+  const list = h.kind === "category"
+    ? (state.ctx.byMonth.get(state.ctx.currentMonth) || []).filter((tx) => tx.category_id === h.categoryId && tx.amount_cents < 0)
+    : state.transactions.filter((tx) => h.ids.includes(tx.id));
+  openTxListSheet(x.title, x.text, sortTx(list), () => openHint(id));
+}
+
+// Übersicht: nur die drei größten Kategorien als Kacheln; alle stehen in der Statistik
+function topCategories(list, total) {
+  const top = list.filter((c) => c.id).slice(0, 3);
+  if (!top.length) return "";
+  return `<section class="card">
+    <h2>${t("Größte Ausgaben")}</h2>
+    <div class="top3">
+      ${top.map((c) => `<button class="top3-tile ${hueCls(c)}" data-statcat="${c.id}" data-scope="overview">
+        <div class="bubble ${hueCls(c)}">${icon(c.icon)}</div>
+        <div class="top3-name">${esc(c.name)}</div>
+        <div class="top3-amt">${fmt0(c.total)}</div>
+        <div class="bar"><i style="width:${Math.round((c.total / Math.max(1, total)) * 100)}%"></i></div>
+        <div class="hint">${Math.round((c.total / Math.max(1, total)) * 100)} %</div>
+      </button>`).join("")}
+    </div>
+    <button class="navrow after-groups" data-action="goto-stats-cats">
+      <div class="bubble">${icon("pie")}</div>
+      <div class="grow">${t("Alle Kategorien")}</div>${icon("chevronRight")}
+    </button>
+  </section>`;
 }
 
 // scope: aus welchem Zeitraum die Liste beim Antippen kommt ("stats" oder "overview")
 function categoryCard(list, total, title, { scope = "overview", head = "" } = {}) {
   const max = Math.max(1, ...list.map((c) => c.total));
-  return `<section class="card">
+  return `<section class="card" id="cat-card-${scope}">
     <h2>${title}</h2>${head}
     ${list.length ? list.map((c) => `
-      <button class="catrow" data-statcat="${c.id ?? "none"}" data-scope="${scope}">
-        <div class="bubble ${c.id ? "" : "none"}">${icon(c.icon)}</div>
+      <button class="catrow ${c.id ? hueCls(c) : ""}" data-statcat="${c.id ?? "none"}" data-scope="${scope}">
+        <div class="bubble ${c.id ? hueCls(c) : "none"}">${icon(c.icon)}</div>
         <div class="name"><div>${esc(c.name)} <small class="hint">${c.count}×</small></div><div class="bar"><i style="width:${(c.total / max) * 100}%"></i></div></div>
         <div class="amt">${fmt(c.total)}<small>${Math.round((c.total / Math.max(1, total)) * 100)} %</small></div>
       </button>`).join("") : `<div class="hint">${t("Keine Ausgaben in diesem Zeitraum.")}</div>`}
@@ -170,8 +263,8 @@ function expenseCard(s, T) {
     <h2>${t("Ausgaben")}</h2>${head}
     <div class="line-row"><span>${t("Fixkosten gesamt")}</span><span class="neg">${fmt(-T.fixed)}</span></div>
     ${groups.length ? groups.map((g) => `
-      <button class="catrow" data-statfix="${esc(g.key)}">
-        <div class="bubble">${icon(g.cat?.icon || "receipt")}</div>
+      <button class="catrow ${g.cat ? hueCls(g.cat) : ""}" data-statfix="${esc(g.key)}">
+        <div class="bubble ${g.cat ? hueCls(g.cat) : ""}">${icon(g.cat?.icon || "receipt")}</div>
         <div class="name"><div>${esc(g.name)} <small class="hint">${g.count}×</small></div><div class="bar"><i style="width:${(g.total / max) * 100}%"></i></div></div>
         <div class="amt">${fmt(g.total)}<small>${Math.round((g.total / Math.max(1, T.expense)) * 100)} %</small></div>
       </button>`).join("") : `<div class="hint">${t("Keine Fixkosten in diesem Zeitraum. Welche Zahlungen als Fixkosten zählen, stellst du unter Einstellungen → Fixkosten ein.")}</div>`}

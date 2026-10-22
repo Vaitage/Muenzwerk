@@ -6,6 +6,7 @@
 // ------------------------------------------------------------------ Umsätze
 function txRow(tx) {
   const cat = tx.category_id ? catById(tx.category_id) : null;
+  const sug = cat ? null : suggestionFor(tx);
   const cls = state.ctx.classOf(tx);
   const chips = [];
   if (tx.pending) chips.push(`<span class="chip muted">${t("vorgemerkt")}</span>`);
@@ -15,10 +16,10 @@ function txRow(tx) {
   if (tx.budget_month !== tx.booking_date.slice(0, 7)) chips.push(`<span class="chip">${t("zählt für {month}", { month: shortMonth(tx.budget_month) })}</span>`);
   return `
     <button class="tx ${tx.pending ? "pending" : ""}" data-tx="${esc(tx.id)}">
-      <div class="bubble ${cat ? "" : "none"}">${icon(cat ? cat.icon : "help")}</div>
+      <div class="bubble ${hueCls(cat)}">${icon(cat ? cat.icon : "help")}</div>
       <div class="mid">
         <div class="who">${esc(tx.counterparty || t("Unbekannt"))}</div>
-        <div class="what">${esc(cat ? cat.name : t("Nicht zugeordnet"))}${chips.join("")}</div>
+        <div class="what">${cat ? esc(cat.name) : sug ? `<span class="sug-hint" title="${esc(t("Vorschlag"))}">${icon("sparkle", "ic-s")}${esc(sug.cat.name)}?</span>` : esc(t("Nicht zugeordnet"))}${chips.join("")}</div>
       </div>
       <div class="amt ${tx.amount_cents > 0 ? "pos" : ""}">${signed(tx.amount_cents)}</div>
     </button>`;
@@ -32,8 +33,108 @@ function groupedList(list) {
   }
   return [...groups].map(([d, items]) => `
     <div class="day">${dayLabel(d)}</div>
-    <div class="list">${items.map(txRow).join("")}</div>`).join("");
+    <div class="list">${items.map(swipeRow).join("")}</div>`).join("");
 }
+
+// ------------------------------------------------------------------ Wischen in der Umsatzliste
+// Nach links wischen zeigt Schnell-Aktionen: Vorschlag übernehmen (offene Zahlung) und
+// Fixkosten an/aus. Alles geht weiterhin auch über das Umsatz-Fenster.
+function swipeActions(tx) {
+  const acts = [];
+  const cat = tx.category_id ? catById(tx.category_id) : null;
+  const sug = cat ? null : suggestionFor(tx);
+  if (sug) acts.push(`<button class="swipe-act ok" data-swipe-cat="${sug.cat.id}" data-swipe-tx="${esc(tx.id)}">${icon("check")}<span>${esc(sug.cat.name)}</span></button>`);
+  const pattern = A.norm(tx.counterparty);
+  if (pattern && tx.amount_cents < 0 && !cat?.is_savings && !tx.pending) {
+    const fixed = state.ctx.classOf(tx) === "fixed";
+    acts.push(`<button class="swipe-act" data-swipe-fix="${fixed ? "0" : "1"}" data-swipe-tx="${esc(tx.id)}">${icon("calendar")}<span>${fixed ? t("Nicht fix") : t("Fixkosten")}</span></button>`);
+  }
+  return acts;
+}
+
+function swipeRow(tx) {
+  const acts = swipeActions(tx);
+  if (!acts.length) return txRow(tx);
+  return `<div class="swipe" style="--acts:${acts.length}"><div class="swipe-acts">${acts.join("")}</div>${txRow(tx)}</div>`;
+}
+
+const SWIPE_W = 88;                 // Breite einer Aktion
+let swipeOpen = null;               // gerade offene Zeile (.swipe)
+let swipeDrag = null;
+
+function closeSwipe(except) {
+  if (swipeOpen && swipeOpen !== except) {
+    swipeOpen.classList.remove("open");
+    swipeOpen.querySelector(".tx").style.transform = "";
+    swipeOpen = null;
+  }
+}
+
+document.addEventListener("touchstart", (e) => {
+  const row = e.target.closest(".swipe");
+  if (!row || e.target.closest(".swipe-act")) { if (!e.target.closest(".swipe-act")) closeSwipe(); return; }
+  closeSwipe(row);
+  const t0 = e.touches[0];
+  swipeDrag = { row, x: t0.clientX, y: t0.clientY, dx: 0, horiz: null, base: row.classList.contains("open") ? -SWIPE_W * Number(getComputedStyle(row).getPropertyValue("--acts")) : 0 };
+}, { passive: true });
+
+document.addEventListener("touchmove", (e) => {
+  const d = swipeDrag;
+  if (!d) return;
+  const t0 = e.touches[0];
+  const dx = t0.clientX - d.x, dy = t0.clientY - d.y;
+  if (d.horiz === null && Math.abs(dx) + Math.abs(dy) > 8) d.horiz = Math.abs(dx) > Math.abs(dy);
+  if (!d.horiz) return;
+  const max = SWIPE_W * Number(getComputedStyle(d.row).getPropertyValue("--acts"));
+  d.dx = Math.max(-max, Math.min(0, d.base + dx));
+  d.row.classList.add("dragging");
+  d.row.querySelector(".tx").style.transform = `translateX(${d.dx}px)`;
+}, { passive: true });
+
+document.addEventListener("touchend", () => {
+  const d = swipeDrag;
+  swipeDrag = null;
+  if (!d || !d.horiz) return;
+  const max = SWIPE_W * Number(getComputedStyle(d.row).getPropertyValue("--acts"));
+  d.row.classList.remove("dragging");
+  const open = d.dx < -max / 3;
+  d.row.classList.toggle("open", open);
+  d.row.querySelector(".tx").style.transform = open ? `translateX(${-max}px)` : "";
+  swipeOpen = open ? d.row : null;
+  d.row.dataset.justSwiped = "1";                 // der folgende Klick öffnet nicht das Fenster
+  setTimeout(() => delete d.row.dataset.justSwiped, 350);
+});
+
+// Vor dem allgemeinen Klick-Handler: Aktionen ausführen, offene Zeile erst schließen
+document.addEventListener("click", async (e) => {
+  const act = e.target.closest(".swipe-act");
+  const row = e.target.closest(".swipe");
+  if (!act) {
+    if (row && (row.dataset.justSwiped || row.classList.contains("open"))) {
+      e.stopImmediatePropagation(); e.preventDefault();
+      if (!row.dataset.justSwiped) closeSwipe();
+    }
+    return;
+  }
+  e.stopImmediatePropagation(); e.preventDefault();
+  const tx = state.transactions.find((x) => String(x.id) === act.dataset.swipeTx);
+  closeSwipe();
+  if (!tx) return;
+  try {
+    if (act.dataset.swipeCat) {
+      // wie im Umsatz-Fenster: gleiche Empfänger mit, künftig immer so
+      const res = await API.updateTransaction(tx.id, { set_category: true, category_id: Number(act.dataset.swipeCat), remember: true, apply_similar: true });
+      let msg = t("Zugeordnet: {name}", { name: catById(Number(act.dataset.swipeCat))?.name || "" });
+      if (res.also_assigned) msg += ` · ${t("{n} weitere mit zugeordnet", { n: res.also_assigned })}`;
+      toast(msg, res.undo_count ? { label: t("Rückgängig"), run: undoLast } : undefined);
+    } else if (act.dataset.swipeFix) {
+      const fixed = act.dataset.swipeFix === "1";
+      await setFixed(A.norm(tx.counterparty), fixed, state.ctx.recurring.get(A.recurringKey(tx)));
+      toast(fixed ? t("Als Fixkosten markiert") : t("Nicht mehr als Fixkosten"));
+    }
+  } catch (err) { toast(err.message); }
+  reload();
+}, true);
 
 const sortTx = (list) => [...list].sort((a, b) => b.booking_date.localeCompare(a.booking_date) || String(b.id).localeCompare(String(a.id)));
 

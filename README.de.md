@@ -66,6 +66,12 @@ Aufnahmen aus der Vorschau mit erfundenen Beispieldaten.
   Tagesbudget ein und sagt dir anhand deines tatsächlichen Ausgebens, ob du es schaffst.
 - **Mitteilung „Gehalt ist da“** – sobald ein Abruf dein Gehalt findet, kommt eine Mitteilung aufs Handy
   (Homescreen-App, iOS 16.4+). Ende-zu-Ende verschlüsselt; der Betrag lässt sich ausblenden.
+- **Kategorie-Vorschläge** – für neue Empfänger schlägt Münzwerk die wahrscheinlichste Kategorie aus
+  ähnlichen Zahlungen vor; übernehmen mit einem Tippen oder per Wischen nach links (Wischen markiert auch Fixkosten).
+- **Auffälligkeiten** – ein Hinweis, wenn eine Kategorie deutlich über dem liegt, was du sonst bis zu diesem
+  Tag ausgibst, oder wenn derselbe Betrag zweimal kurz hintereinander an denselben Empfänger ging. Wegklickbar.
+- **Monatsrückblick** – in den ersten Tagen eines Monats: was übrig blieb, größte Ausgabe, Vergleich zum
+  Vormonat, Sparziele. Wie viele Tage er bleibt, stellst du ein; wegklickbar.
 - **Suche** – Empfänger, Verwendungszweck, Kategorie, Betrag (z. B. `39,95`) oder Datum,
   mit Summen für Monat, Jahr oder insgesamt.
 - **Bankfreigabe im Blick** – die PSD2-Freigabe läuft nach 90–180 Tagen ab. Münzwerk zeigt

@@ -89,6 +89,10 @@ function viewSettings() {
         <div class="grow"><div>${t("Große Ausgabe ab")}</div><div class="hint">${t("Einzelne Ausgaben ab diesem Betrag zählen nicht in die Prognose, weil sie selten sind.")}</div></div>
         <div class="stepper"><button data-large="-1" aria-label="${t("weniger")}">−</button><span style="min-width:62px">${fmt0(settings.large_expense_cents)}</span><button data-large="1" aria-label="${t("mehr")}">+</button></div>
       </div>
+      <div class="row">
+        <div class="grow"><div>${t("Monatsrückblick")}</div><div class="hint">${t("Zum Monatsanfang auf der Übersicht: was übrig blieb, größte Ausgabe, Vergleich zum Vormonat. Lässt sich wegklicken.")}</div></div>
+        <div class="stepper"><button data-review="-1" aria-label="${t("weniger")}">−</button><span style="min-width:62px">${settings.review_days ? tn(settings.review_days, "{n} Tag", "{n} Tage") : t("aus")}</span><button data-review="1" aria-label="${t("mehr")}">+</button></div>
+      </div>
     </section>
 
     <section class="card nav-card">
@@ -115,7 +119,7 @@ function settingsCategories() {
     <section class="card">
       ${cats.map((c) => `
         <button class="navrow" data-editcat="${c.id}">
-          <div class="bubble">${icon(c.icon)}</div>
+          <div class="bubble ${hueCls(c)}">${icon(c.icon)}</div>
           <div class="grow">${esc(c.name)}</div>
           ${c.is_savings ? `<span class="chip">${t("Ersparnis")}</span>` : ""}
           ${c.kind === "income" && c.shift_next_month ? `<span class="chip">${t("Folgemonat")}</span>` : ""}
@@ -130,7 +134,7 @@ function openCategoryEditSheet(cat) {
   const on = income ? !!cat.shift_next_month : !!cat.is_savings;
   const sheet = openSheet(`
     <div class="meta" style="margin-bottom:2px">${income ? t("Für Einnahmen") : t("Für Ausgaben")}</div>
-    <h3 class="cat-title"><span class="bubble">${icon(cat.icon)}</span>${esc(cat.name)}</h3>
+    <h3 class="cat-title"><span class="bubble ${hueCls(cat)}">${icon(cat.icon)}</span>${esc(cat.name)}</h3>
     <div class="card" style="padding:4px 16px;margin-top:12px">
       <div class="row"><div class="grow">${income
         ? `<div>${t("Zählt zum Folgemonat")}</div><div class="hint">${t("Wie beim Gehalt: Eingang am Monatsende gilt für den nächsten Monat")}</div>`

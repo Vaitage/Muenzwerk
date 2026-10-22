@@ -245,7 +245,7 @@ function viewWealth() {
 
   let html = `<section class="card hero">
     <div class="sub">${t("Nettovermögen")}</div>
-    <div class="big ${w.net >= 0 ? "" : "neg"}">${fmt(w.net)}</div>
+    <div class="big ${w.net >= 0 ? "" : "neg"}" data-count="${w.net}" data-count-key="net">${fmt(w.net)}</div>
     <div class="sub">${t("Vermögen")} ${fmt(w.assets)}${w.debts ? ` · ${t("Schulden")} ${fmt(w.debts)}` : ""}</div>
     ${yearAgo && s.length > 1 ? `<div class="delta ${change >= 0 ? "good" : "bad"}" style="font-size:14px;margin-top:4px">${change >= 0 ? "▲" : "▼"} ${fmt0(Math.abs(change))} ${t("seit {date}", { date: monthLabel(yearAgo.month) })}</div>` : ""}
     ${pts.length > 1 ? lineChart({

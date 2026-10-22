@@ -19,15 +19,21 @@ function openTxSheet(tx, onBack) {
   const info = state.ctx.recurring.get(A.recurringKey(tx));
   const pattern = A.norm(tx.counterparty);
   const showFixed = pattern && !curCat?.is_savings;
+  const sug = curCat ? null : suggestionFor(tx);
 
   const sheet = openSheet(`
     <div class="bigamt ${tx.amount_cents > 0 ? "pos" : ""}">${signed(tx.amount_cents)}</div>
     <h3>${esc(tx.counterparty || t("Unbekannt"))}</h3>
     <div class="meta">${esc(tx.purpose)}<br>${new Date(tx.booking_date + "T12:00:00").toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" })}</div>
     <div class="cur-cat">
-      <div class="bubble ${curCat ? "" : "none"}">${icon(curCat ? curCat.icon : "inbox")}</div>
+      <div class="bubble ${hueCls(curCat)}">${icon(curCat ? curCat.icon : "inbox")}</div>
       <div><span class="hint">${t("Kategorie")}</span><b>${curCat ? esc(curCat.name) : t("Noch keine – unten auswählen")}</b></div>
     </div>
+    ${sug ? `<div class="suggest ${hueCls(sug.cat)}">
+      <div class="bubble ${hueCls(sug.cat)}">${icon(sug.cat.icon)}</div>
+      <div class="grow"><span class="hint">${icon("sparkle", "ic-s")} ${t("Vorschlag")}</span><b>${esc(sug.cat.name)}</b><span class="hint">${esc(sug.why)}</span></div>
+      <button class="btn" data-cat="${sug.cat.id}">${t("Übernehmen")}</button>
+    </div>` : ""}
     ${tx.pending ? `<div class="pending-note">${icon("calendar")}<div><b>${t("Vorgemerkt")}</b><span>${t("Die Bank hat die Zahlung noch nicht gebucht. Sie zählt schon ins Budget; der Betrag kann sich bis zur Buchung noch ändern.")}</span></div></div>` : ""}
 
     <div class="card" style="padding:4px 16px">
@@ -65,7 +71,7 @@ function openTxSheet(tx, onBack) {
   const drawGrid = () => {
     const cats = state.categories.filter((c) => c.kind === sheetKind || (c.is_savings && sheetKind === "income"));
     $("#catgrid", sheet).innerHTML = cats.map((c) => `
-      <button class="cat" data-cat="${c.id}" aria-pressed="${c.id === tx.category_id}">${icon(c.icon)}<span>${esc(c.name)}</span></button>`).join("")
+      <button class="cat ${hueCls(c)}" data-cat="${c.id}" aria-pressed="${c.id === tx.category_id}">${icon(c.icon)}<span>${esc(c.name)}</span></button>`).join("")
       + `<button class="cat add" data-newcat>${icon("plus")}<span>${t("Hinzufügen")}</span></button>`;
     sheet.querySelectorAll(".seg button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.kind === sheetKind));
   };

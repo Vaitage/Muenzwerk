@@ -116,6 +116,10 @@ DEFAULT_SETTINGS = {
     "shift_from_day": "15",
     # Einzelne Ausgaben ab diesem Betrag (in Cent) zählen als "große Ausgabe".
     "large_expense_cents": "25000",
+    # Monatsrückblick auf der Übersicht: so viele Tage ab Monatsanfang sichtbar (0 = aus)
+    "review_days": "3",
+    # Weggeklickte Hinweise (Rückblick, Auffälligkeiten) als JSON-Liste ihrer Kennungen
+    "dismissed_hints": "[]",
 }
 
 
