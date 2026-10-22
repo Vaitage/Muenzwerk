@@ -168,7 +168,7 @@ bewegen. Dein Online-Banking-Passwort sehen weder Münzwerk noch Enable Banking.
 | `ALLOWED_HOSTS` | Adressen, unter denen die App antwortet, z. B. `localhost,127.0.0.1,*.ts.net` |
 | `SYNC_INTERVAL_HOURS` | `0` schaltet den Abruf im Hintergrund aus; sonst Abstand in Stunden, wenn `SYNC_TIMES` leer ist |
 | `SYNC_TIMES` | feste Uhrzeiten für den Abruf im Hintergrund, Ortszeit (Standard `06:30,10:00,14:00,20:00`) |
-| `PUSH_CONTACT` | Kontakt im Absender-Ausweis für Mitteilungen (Standard `mailto:muenzwerk@example.com`) |
+| `PUSH_CONTACT` | Kontakt im Absender-Ausweis für Mitteilungen, `mailto:…` oder `https://…` (Standard: `PUBLIC_URL`; Apple lehnt Platzhalter wie example.com ab) |
 | `ENABLEBANKING_APP_ID`, `ENABLEBANKING_KEY_FILE` | deine App bei Enable Banking |
 | `ENABLEBANKING_BANK`, `ENABLEBANKING_COUNTRY` | z. B. `ING` / `DE` |
 | `AUTH_IDLE_MINUTES`, `AUTH_MAX_HOURS` | Sperre nach Inaktivität (Standard 15 Min.) / spätestens (12 Std.) |

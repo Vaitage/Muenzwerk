@@ -136,3 +136,37 @@ def test_abruf_meldet_neues_gehalt(tmp_path, monkeypatch):
         assert sync.run(conn, Salary())["new"] == 1
         assert sync.run(conn, Salary())["new"] == 0          # zweiter Abruf: schon bekannt, keine zweite Mitteilung
     assert len(got) == 1 and got[0][0] == "Gehalt ist da"
+
+
+def test_absenderadresse_fuer_apple(monkeypatch):
+    # Apple lehnt Platzhalter ab (403 BadJwtToken) – dann lieber die https-Adresse der Installation
+    monkeypatch.delenv("PUSH_CONTACT", raising=False)
+    monkeypatch.setenv("PUBLIC_URL", "https://pi.beispiel.ts.net/")
+    assert push.contact() == "https://pi.beispiel.ts.net"
+    monkeypatch.setenv("PUSH_CONTACT", "mailto:ich@beispiel.de")
+    assert push.contact() == "mailto:ich@beispiel.de"
+    for bad in ("mailto:x@example.com", "mailto: x@beispiel.de", "ich@beispiel.de", "https://localhost"):
+        monkeypatch.setenv("PUSH_CONTACT", bad)
+        assert push.contact() == "https://pi.beispiel.ts.net", bad
+    monkeypatch.setenv("PUBLIC_URL", "http://192.168.1.5:8000")
+    monkeypatch.delenv("PUSH_CONTACT")
+    assert push.contact() == "mailto:muenzwerk@example.com"
+
+
+def test_ablehnung_wird_gemerkt_und_gemeldet(tmp_path, monkeypatch):
+    monkeypatch.setenv("PUBLIC_URL", "https://pi.beispiel.ts.net")
+
+    class Resp:
+        status_code, is_success, text = 403, False, '{"reason":"BadJwtToken"}'
+        def json(self): return {"reason": "BadJwtToken"}
+    monkeypatch.setattr(push.httpx, "post", lambda *a, **k: Resp())
+    with make_client(tmp_path, monkeypatch) as client:
+        h = {"X-Haushaltsbuch": "1"}
+        assert client.post("/api/push/test", headers=h).status_code == 409      # nichts angemeldet
+        p256dh, auth = ua_keys()
+        client.post("/api/push/subscribe", headers=h,
+                    json={"endpoint": "https://web.push.apple.com/abc", "keys": {"p256dh": p256dh, "auth": auth}})
+        r = client.post("/api/push/test", headers=h)
+        assert r.status_code == 502 and "403 BadJwtToken" in r.json()["detail"]
+        st = client.get("/api/push").json()
+        assert st["last_error"] == "403 BadJwtToken" and st["contact_ok"] is True

@@ -163,7 +163,7 @@ and neither Münzwerk nor Enable Banking ever see your online banking password.
 | `ALLOWED_HOSTS` | host names the app answers to, e.g. `localhost,127.0.0.1,*.ts.net` |
 | `SYNC_INTERVAL_HOURS` | `0` turns the background fetch off; otherwise the interval if `SYNC_TIMES` is empty |
 | `SYNC_TIMES` | fixed background fetch times, local time (default `06:30,10:00,14:00,20:00`) |
-| `PUSH_CONTACT` | contact in the sender ID for notifications (default `mailto:muenzwerk@example.com`) |
+| `PUSH_CONTACT` | contact in the sender ID for notifications, `mailto:…` or `https://…` (default: `PUBLIC_URL`; Apple rejects placeholders like example.com) |
 | `ENABLEBANKING_APP_ID`, `ENABLEBANKING_KEY_FILE` | your Enable Banking application |
 | `ENABLEBANKING_BANK`, `ENABLEBANKING_COUNTRY` | e.g. `ING` / `DE` |
 | `AUTH_IDLE_MINUTES`, `AUTH_MAX_HOURS` | lock after inactivity (default 15 min) / at the latest (12 h) |

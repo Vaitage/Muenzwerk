@@ -2,7 +2,7 @@
   "use strict";
   // Version dieser App-Dateien (gleich wie __version__ in app/__init__.py). Weicht die
   // Version des Servers ab, zeigt das Handy noch eine zwischengespeicherte Fassung.
-  const APP_VERSION = "1.10.0";
+  const APP_VERSION = "1.10.1";
   const A = window.Analytics;
   const { t, tn, ord, locale } = window.I18N;
 
@@ -1647,7 +1647,11 @@
       body = `<p class="note" style="margin-top:0">${t("Bekomme eine Mitteilung, sobald dein Gehalt gebucht ist – auch wenn Münzwerk zu ist.")}</p>
         <div class="btn-row"><button class="btn" data-action="push-enable">${t("Mitteilungen erlauben")}</button></div>`;
     } else {
-      body = `<div class="row"><div class="grow"><div>${t("Gehalt ist da")}</div>
+      const problems = [];
+      if (!pushInfo.contact_ok) problems.push(t("Apple stellt nur zu, wenn der Pi eine echte Absenderadresse hat. Trag in der .env auf dem Pi PUBLIC_URL (https://…) oder PUSH_CONTACT=mailto:deine@adresse ein."));
+      if (pushInfo.last_error) problems.push(t("Letzter Fehler beim Senden: {msg}", { msg: esc(pushInfo.last_error) }));
+      body = `${problems.map((p) => `<p class="note warn-text" style="margin-top:0">${p}</p>`).join("")}
+        <div class="row"><div class="grow"><div>${t("Gehalt ist da")}</div>
           <div class="hint">${pushInfo.sync_times
             ? t("Kommt beim nächsten Abruf nach der Buchung (um {times} Uhr).", { times: esc(pushInfo.sync_times.split(",").map((x) => x.trim()).join(", ")) })
             : t("Kommt beim nächsten Abruf nach der Buchung, z. B. wenn du Münzwerk öffnest.")}</div></div>${icon("check")}</div>
@@ -1677,8 +1681,16 @@
       } catch (err) { toast(t("Mitteilungen konnten nicht eingerichtet werden: {msg}", { msg: err.message })); }
     }
     if (act === "push-test") {
-      try { await API.pushTest(); toast(t("Test-Mitteilung gesendet")); } catch (err) { toast(err.message); }
-      return;
+      try {
+        // Anmeldung des Geräts erneut an den Pi schicken (falls sie dort fehlt oder sich geändert hat)
+        const reg = await navigator.serviceWorker.getRegistration();
+        const sub = reg ? await reg.pushManager.getSubscription() : null;
+        if (sub) { const j = sub.toJSON(); await API.pushSubscribe({ endpoint: j.endpoint, keys: j.keys }); }
+        await API.pushTest();
+        toast(t("Test-Mitteilung gesendet"));
+      } catch (err) { toast(err.message); }
+      pushInfo = await API.pushStatus().catch((e) => ({ error: e.message }));
+      return render();
     }
     if (act === "push-disable") {
       try {

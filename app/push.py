@@ -32,8 +32,30 @@ router = APIRouter(prefix="/api/push")
 
 # Nur an echte Mitteilungsdienste senden (der Pi soll keine beliebigen Adressen aufrufen)
 PUSH_HOSTS = (".push.apple.com", "fcm.googleapis.com", ".push.services.mozilla.com", ".notify.windows.com")
-# Kontaktadresse im VAPID-Ausweis (verlangt der Dienst; wird nicht angezeigt)
-CONTACT = os.environ.get("PUSH_CONTACT", "mailto:muenzwerk@example.com")
+# Kontaktadresse im VAPID-Ausweis (verlangt der Dienst; wird nicht angezeigt).
+# Apple lehnt Ausweise mit Platzhalter-Adressen ab (403 BadJwtToken), z. B. example.com
+# oder localhost. Deshalb: PUSH_CONTACT, sonst die https-Adresse der Installation.
+_FAKE_HOSTS = ("example.com", "example.org", "example.net", "localhost", ".local", ".invalid", ".test")
+
+
+def _usable_contact(value: str) -> bool:
+    value = value.strip()
+    if " " in value:
+        return False
+    if value.startswith("mailto:"):
+        host = value[7:].rpartition("@")[2].lower()
+    elif value.startswith("https://"):
+        host = (urlparse(value).hostname or "").lower()
+    else:
+        return False
+    return "." in host and not any(host == h.lstrip(".") or host.endswith(h) for h in _FAKE_HOSTS)
+
+
+def contact() -> str:
+    for value in (os.environ.get("PUSH_CONTACT", ""), os.environ.get("PUBLIC_URL", "").rstrip("/")):
+        if _usable_contact(value):
+            return value.strip()
+    return "mailto:muenzwerk@example.com"      # geht bei Apple nicht – die App weist darauf hin
 SALARY_MAX_AGE_DAYS = 3        # ältere Gehaltsbuchungen (z. B. beim ersten Abruf) lösen nichts aus
 
 
@@ -80,7 +102,7 @@ def public_key_b64(key: ec.EllipticCurvePrivateKey) -> str:
 
 def vapid_header(key: ec.EllipticCurvePrivateKey, endpoint: str) -> str:
     u = urlparse(endpoint)
-    token = jwt.encode({"aud": f"{u.scheme}://{u.netloc}", "exp": int(time.time()) + 12 * 3600, "sub": CONTACT},
+    token = jwt.encode({"aud": f"{u.scheme}://{u.netloc}", "exp": int(time.time()) + 12 * 3600, "sub": contact()},
                        key, algorithm="ES256")
     return f"vapid t={token}, k={public_key_b64(key)}"
 
@@ -117,7 +139,7 @@ def send(conn: sqlite3.Connection, title: str, body: str, url: str = "/") -> int
         return 0
     key = vapid_key(conn)
     payload = json.dumps({"title": title, "body": body, "url": url}, ensure_ascii=False).encode()
-    ok = 0
+    ok, errors = 0, []
     for s in subs:
         if not allowed_endpoint(s["endpoint"]):
             continue
@@ -129,13 +151,30 @@ def send(conn: sqlite3.Connection, title: str, body: str, url: str = "/") -> int
             })
             if resp.status_code in (404, 410):
                 conn.execute("DELETE FROM push_subscriptions WHERE endpoint = ?", (s["endpoint"],))
+                errors.append(f"{resp.status_code} – Anmeldung abgelaufen")
             elif resp.is_success:
                 ok += 1
             else:
-                log.warning("Mitteilung abgelehnt (%s): %s", resp.status_code, resp.text[:200])
-        except Exception:
+                errors.append(f"{resp.status_code} {_reason(resp)}".strip())
+                log.warning("Mitteilung abgelehnt (%s, Absender %s): %s", resp.status_code, contact(), resp.text[:200])
+        except Exception as exc:
+            errors.append(type(exc).__name__)
             log.exception("Mitteilung konnte nicht gesendet werden")
+    # Letzten Fehler merken, damit die App ihn unter „Mitteilungen“ zeigen kann
+    if ok:
+        conn.execute("DELETE FROM settings WHERE key = 'push_last_error'")
+    elif errors:
+        _put(conn, "push_last_error", "; ".join(dict.fromkeys(errors))[:200])
     return ok
+
+
+def _reason(resp: httpx.Response) -> str:
+    """Kurzer Grund aus der Antwort des Dienstes (Apple: {"reason": "BadJwtToken"})."""
+    try:
+        data = resp.json()
+        return str(data.get("reason") or data.get("message") or data.get("error") or "")[:80]
+    except Exception:
+        return resp.text.strip()[:80]
 
 
 # --------------------------------------------------------------- Gehalt ist da
@@ -206,6 +245,9 @@ def push_status(conn=Depends(get_db)):
         "public_key": public_key_b64(vapid_key(conn)),
         "subscriptions": conn.execute("SELECT COUNT(*) FROM push_subscriptions").fetchone()[0],
         "show_amount": _setting(conn, "push_show_amount") != "0",
+        "last_error": _setting(conn, "push_last_error"),
+        # Apple braucht eine echte Kontaktadresse (PUSH_CONTACT oder https-PUBLIC_URL)
+        "contact_ok": contact() != "mailto:muenzwerk@example.com",
         # Wann der Pi im Hintergrund abruft (dann kommt auch die Mitteilung)
         "sync_times": os.environ.get("SYNC_TIMES", "06:30,10:00,14:00,20:00")
         if os.environ.get("SYNC_INTERVAL_HOURS", "6") not in ("0", "0.0") else "",
@@ -243,7 +285,11 @@ def update_settings(body: PushSettings, conn=Depends(get_db)):
 @router.post("/test")
 def test_message(conn=Depends(get_db)):
     de = os.environ.get("DEFAULT_LANGUAGE", "de").lower().startswith("de")
+    if not conn.execute("SELECT 1 FROM push_subscriptions LIMIT 1").fetchone():
+        raise HTTPException(409, "Auf dem Pi ist kein Gerät für Mitteilungen angemeldet.")
     sent = send(conn, "Münzwerk", "Mitteilungen funktionieren." if de else "Notifications work.")
     if not sent:
-        raise HTTPException(502, "Die Mitteilung konnte nicht zugestellt werden.")
+        reason = _setting(conn, "push_last_error") or "?"
+        conn.commit()        # Fehler gemerkt lassen, auch wenn die Antwort ein Fehler ist
+        raise HTTPException(502, f"Der Mitteilungsdienst hat abgelehnt: {reason}")
     return {"sent": sent}
