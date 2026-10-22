@@ -702,3 +702,44 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; justif
 .skeleton.hero-sk { height: 248px; }
 .skeleton.card-sk { height: 180px; }
 @keyframes skeleton-pulse { 50% { opacity: 0.55; } }
+
+/* ---------- Feinschliff (1.6.0) ---------- */
+
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.warn-text { color: var(--warn); font-weight: 600; }
+
+/* Zeile „x Zahlungen warten auf eine Kategorie“ unter der Kernzahl */
+.inbox-line {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px;
+  margin: -4px 0 12px; padding: 10px 14px; border-radius: 14px; text-align: left;
+  background: var(--accent-soft); color: var(--text); font-weight: 600; font-size: 15px;
+  transition: opacity 120ms;
+}
+.inbox-line:active { opacity: 0.7; }
+.inbox-line .ic { color: var(--accent); width: 20px; height: 20px; }
+.inbox-line .ic:last-child { width: 18px; height: 18px; color: var(--muted); }
+.inbox-line .grow { flex: 1; min-width: 0; }
+
+/* Link „Aufstellung ansehen“ unter den offenen Posten */
+.navrow.after-groups { border-top: 1px solid var(--line); margin-top: 6px; }
+.navrow-value.pos { color: var(--income); }
+.navrow-value.neg { color: var(--danger); }
+
+/* Umsatz-Fenster: gewählte Kategorie oben */
+.cur-cat { display: flex; align-items: center; gap: 12px; background: var(--surface); border-radius: 14px; padding: 10px 14px; margin: -4px 0 14px; }
+.cur-cat .hint { display: block; font-size: 12px; }
+.cur-cat b { display: block; }
+
+/* Bank: „Neu verbinden“ als Textknopf, wenn er gerade nicht gebraucht wird */
+.btn-text {
+  display: block; width: 100%; min-height: 44px; margin-top: 6px;
+  color: var(--accent); font-weight: 600; font-size: 15px; text-align: center; border-radius: 12px;
+}
+.btn-text:active { background: var(--accent-soft); }
+.btn-text:disabled { opacity: 0.4; }
+
+/* Leere Bereiche */
+.empty-state { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; padding: 28px 16px; }
+.empty-state > .ic { width: 32px; height: 32px; color: var(--muted); margin-bottom: 4px; }
+.empty-state span { color: var(--muted); font-size: 14px; max-width: 34ch; }
+.empty-state .btn { margin-top: 10px; }

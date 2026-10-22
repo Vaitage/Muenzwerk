@@ -2,7 +2,7 @@
   "use strict";
   // Version dieser App-Dateien (gleich wie __version__ in app/__init__.py). Weicht die
   // Version des Servers ab, zeigt das Handy noch eine zwischengespeicherte Fassung.
-  const APP_VERSION = "1.5.0";
+  const APP_VERSION = "1.6.0";
   const A = window.Analytics;
   const { t, tn, ord, locale } = window.I18N;
 
@@ -334,7 +334,7 @@
     $("#tabbar").innerHTML = `<div class="tabbar-inner">${TABS.map((t) => `
       <button class="tab" data-tab="${t.id}" ${state.view === t.id ? 'aria-current="page"' : ""}>
         ${icon(t.icon)}<span>${t.label}</span>
-        ${t.id === "transactions" && open ? `<span class="badge">${open}</span>` : ""}
+        ${t.id === "transactions" && open ? `<span class="badge" aria-hidden="true">${open > 9 ? "9+" : open}</span><span class="sr-only">${tn(open, "{n} offen", "{n} offen")}</span>` : ""}
       </button>`).join("")}</div>`;
   }
 
@@ -374,6 +374,12 @@
   async function reload() {
     await loadAll();
     render();
+  }
+
+  // Leerer Bereich: was hier erscheint und wie es sich füllt (optional mit Knopf)
+  function emptyState(ic, title, text, action) {
+    return `<div class="empty-state">${icon(ic)}<b>${esc(title)}</b><span>${esc(text)}</span>
+      ${action ? `<button class="btn secondary" data-action="${action.action}">${esc(action.label)}</button>` : ""}</div>`;
   }
 
   function noticeHtml(ic, title, text, action, cls = "") {
@@ -430,7 +436,6 @@
     const T = r.totals;
     const open = openCount();
     let html = bankNotices();
-    if (open) html += noticeHtml("inbox", tn(open, "{n} Zahlung wartet auf eine Kategorie", "{n} Zahlungen warten auf eine Kategorie"), t("Einmal zuordnen – ähnliche erkennt die App dann selbst."), "goto-inbox");
 
     // Übrig im Monat, darunter Tagesbudget mit 3-Tage-Vorschau
     const heroLabel = r.status === "past" ? t("Übrig am Ende vom {month}", { month: monthName(r.month) }) : r.status === "future" ? t("Geplant übrig im {month}", { month: monthName(r.month) }) : t("Übrig bis Monatsende");
@@ -461,6 +466,11 @@
         </div>
         <p class="note">${t("Wenn du weiter ausgibst wie bisher, etwa {amount} am Tag für Variables.", { amount: fmt0(r.pace) })}</p>` : ""}
     </section>`;
+    // Noch nicht zugeordnete Zahlungen: schmale Zeile unter der Kernzahl statt Hinweis darüber
+    if (open) {
+      html += `<button class="inbox-line" data-action="goto-inbox">${icon("inbox")}
+        <span class="grow">${tn(open, "{n} Zahlung wartet auf eine Kategorie", "{n} Zahlungen warten auf eine Kategorie")}</span>${icon("chevronRight")}</button>`;
+    }
 
     // Prognose bis Monatsende
     const actual = r.series.actual.map((p) => ({ x: p.day, y: p.value }));
@@ -492,32 +502,25 @@
       ${r.status !== "past" ? `<div class="legend"><span><i class="sw solid"></i>${t("bisher")}</span><span><i class="sw dash"></i>${t("Prognose")}</span></div>` : ""}
     </section>`;
 
-    // Aufstellung
+    // Noch offen in diesem Monat; die vollständige Aufstellung steht in der Statistik
     const row = (label, cents, cls = "", sub = false) =>
       `<div class="line-row ${sub ? "sub-row" : ""}"><span>${label}</span><span class="${cls}">${fmt(cents)}</span></div>`;
+    const hasOpen = r.openFixed.length || r.expectedIncome.length;
     html += `<section class="card">
-      <h2>${t("Aufstellung")}</h2>
-      <div class="group">
-        ${row(`${icon("wallet", "ic-s")} ${t("Einkommen")}`, T.income, "pos")}
-        ${row(t("Regelmäßig"), T.income_regular, "pos-soft", true)}
-        ${row(t("Variabel"), T.income_variable, "pos-soft", true)}
-      </div>
-      <div class="group">
-        ${row(`${icon("basket", "ic-s")} ${t("Ausgaben")}`, -T.expense, "neg")}
-        ${row(t("Fixkosten"), -T.fixed, "neg-soft", true)}
-        ${row(t("Variable Ausgaben"), -T.variable, "neg-soft", true)}
-        ${row(`${t("Große Ausgaben")} <small>${t("ab {amount}", { amount: fmt0(state.settings.large_expense_cents) })}</small>`, -T.large, "neg-soft", true)}
-      </div>
-      <div class="group">${row(`${icon("piggy", "ic-s")} ${t("Ersparnisse")}`, T.savings)}</div>
+      ${hasOpen ? `<h2>${t("Noch offen in diesem Monat")}</h2>` : ""}
       ${r.openFixed.length ? `<div class="group">
-        ${row(`${icon("calendar", "ic-s")} ${t("Noch offene Fixkosten")}`, -r.openFixedTotal, "neg")}
+        ${row(`${icon("calendar", "ic-s")} ${t("Fixkosten")}`, -r.openFixedTotal, "neg")}
         ${r.openFixed.map((x) => row(`${esc(x.name)} <small>${x.overdue ? t("überfällig") : t("um den {day}", { day: ord(x.day) })}</small>`, -x.amount_cents, "neg-soft", true)).join("")}
       </div>` : ""}
       ${r.expectedIncome.length ? `<div class="group">
         ${row(`${icon("trend", "ic-s")} ${t("Erwartete Einnahmen")}`, r.expectedIncomeTotal, "pos")}
         ${r.expectedIncome.map((x) => row(`${esc(x.name)} <small>${t("um den {day}", { day: ord(x.day) })}</small>`, x.amount_cents, "", true)).join("")}
       </div>` : ""}
-      <div class="group total">${row(t("Überschuss"), T.surplus, T.surplus >= 0 ? "pos" : "neg")}</div>
+      <button class="navrow ${hasOpen ? "after-groups" : ""}" data-action="goto-stats">
+        <div class="bubble">${icon("chart")}</div>
+        <div class="grow">${t("Aufstellung ansehen")}</div>
+        <span class="navrow-value ${T.surplus >= 0 ? "pos" : "neg"}">${t("Überschuss {amount}", { amount: fmt0(T.surplus) })}</span>${icon("chevronRight")}
+      </button>
     </section>`;
 
     html += categoryCard(r.byCategory, T.expense, t("Ausgaben nach Kategorie"));
@@ -691,7 +694,12 @@
       return seg + `<p class="lead">${t("Diese Zahlungen konnte die App nicht selbst einsortieren. Tippe eine an und wähle die Kategorie.")}</p>${groupedList(list)}`;
     }
     const list = sortTx(state.transactions.filter((x) => x.budget_month === state.month));
-    if (!list.length) return seg + `<div class="empty">${t("Keine Umsätze in diesem Monat.")}</div>`;
+    if (!list.length) {
+      const b = state.bank;
+      return seg + emptyState("list", t("Keine Umsätze in diesem Monat"),
+        b.state === "none" ? t("Verbinde deine Bank, dann erscheinen die Umsätze hier.") : t("Neue Umsätze kommen beim nächsten Abruf."),
+        b.state === "none" ? { label: t("Bank verbinden"), action: "goto-settings" } : { label: t("Jetzt abrufen"), action: "sync" });
+    }
     return seg + groupedList(list);
   }
 
@@ -1119,6 +1127,10 @@
       <div class="bigamt ${tx.amount_cents > 0 ? "pos" : ""}">${signed(tx.amount_cents)}</div>
       <h3>${esc(tx.counterparty || t("Unbekannt"))}</h3>
       <div class="meta">${esc(tx.purpose)}<br>${new Date(tx.booking_date + "T12:00:00").toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" })}</div>
+      <div class="cur-cat">
+        <div class="bubble ${curCat ? "" : "none"}">${icon(curCat ? curCat.icon : "inbox")}</div>
+        <div><span class="hint">${t("Kategorie")}</span><b>${curCat ? esc(curCat.name) : t("Noch keine – unten auswählen")}</b></div>
+      </div>
       ${tx.pending ? `<div class="pending-note">${icon("calendar")}<div><b>${t("Vorgemerkt")}</b><span>${t("Die Bank hat die Zahlung noch nicht gebucht. Sie zählt schon ins Budget; der Betrag kann sich bis zur Buchung noch ändern.")}</span></div></div>` : ""}
 
       <div class="card" style="padding:4px 16px">
@@ -1259,7 +1271,7 @@
   async function viewSettingsAsync() {
     [rulesCache, updatesInfo, widgetInfo] = await Promise.all([
       API.rules(), API.updates ? API.updates() : null,
-      API.widgetKey ? API.widgetKey().catch(() => null) : null, window.Auth?.loadPasskeys(),
+      API.widgetKey ? API.widgetKey().catch((e) => ({ active: false, error: e.message })) : null, window.Auth?.loadPasskeys(),
     ]);
     if (state.view === "settings") render();
     // App mitten in einem Update geöffnet: weiter beobachten
@@ -1314,10 +1326,15 @@
           ${bank.last_sync ? `<div class="hint">${t("Zuletzt abgerufen: {date}", { date: new Date(bank.last_sync).toLocaleString(locale, { dateStyle: "short", timeStyle: "short" }) })}</div>` : ""}
           ${fetchInfoHtml(bank)}</div>
         </div>
-        <div class="btn-row">
-          ${bank.state === "none" ? "" : `<button class="btn secondary" data-action="sync">${icon("refresh")} ${t("Jetzt abrufen")}</button>`}
-          <button class="btn" data-action="connect" ${bank.setup ? "disabled" : ""}>${bank.state === "none" ? t("Verbinden") : t("Neu verbinden")}</button>
+        ${bank.state === "none" ? `<div class="btn-row">
+          <button class="btn" data-action="connect" ${bank.setup ? "disabled" : ""}>${t("Verbinden")}</button>
+        </div>` : ["expired", "expiring"].includes(bank.state) ? `<div class="btn-row">
+          <button class="btn secondary" data-action="sync">${icon("refresh")} ${t("Jetzt abrufen")}</button>
+          <button class="btn" data-action="connect" ${bank.setup ? "disabled" : ""}>${t("Neu verbinden")}</button>
+        </div>` : `<div class="btn-row">
+          <button class="btn" data-action="sync">${icon("refresh")} ${t("Jetzt abrufen")}</button>
         </div>
+        <button class="btn-text" data-action="connect" ${bank.setup ? "disabled" : ""}>${t("Neu verbinden")}</button>`}
         ${bank.setup ? setupHint(bank.setup) : ""}
       </section>
       ${aboutCard()}
@@ -1336,9 +1353,9 @@
 
       <section class="card nav-card">
         ${navRow("categories", "tag", t("Kategorien"), state.categories.length)}
-        ${navRow("rules", "sparkle", t("Gelernte Regeln"), userRuleCount)}
+        ${navRow("rules", "sparkle", t("Gelernte Regeln"), userRuleCount || t("noch keine"))}
         ${navRow("fixed", "calendar", t("Fixkosten"), t("{amount} im Monat", { amount: fmt0(fixedSum) }))}
-        ${widgetInfo ? navRow("widget", "phone", t("iPhone-Widget"), widgetInfo.active ? t("Aktiv") : t("Aus")) : ""}
+        ${widgetInfo ? navRow("widget", "phone", t("iPhone-Widget"), widgetInfo.error ? t("Fehler") : widgetInfo.active ? t("Aktiv") : t("Aus")) : ""}
       </section>
       ${window.Auth ? window.Auth.settingsHtml() : ""}
       ${updatesCard()}
@@ -1402,7 +1419,7 @@
     const starterRules = rulesCache.filter((r) => r.source !== "user");
     return `
       <section class="card">
-        ${userRules.length ? userRules.map(ruleRow).join("") : `<div class="hint">${t("Noch keine. Sie entstehen, wenn du eine Zahlung zuordnest und „Künftig immer so zuordnen“ an lässt.")}</div>`}
+        ${userRules.length ? userRules.map(ruleRow).join("") : emptyState("sparkle", t("Noch keine gelernten Regeln"), t("Sie entstehen, wenn du eine Zahlung zuordnest und „Künftig immer so zuordnen“ an lässt. Danach sortiert Münzwerk Zahlungen an diesen Empfänger selbst ein."))}
       </section>
       ${starterRules.length ? `<section class="card"><details><summary>${t("{n} Start-Regeln anzeigen", { n: starterRules.length })}</summary>${starterRules.map(ruleRow).join("")}</details></section>` : ""}`;
   }
@@ -1424,7 +1441,7 @@
       <section class="card">
         <h2>${t("Fixkosten · {amount} im Monat", { amount: fmt(fixedSum) })}</h2>
         <p class="note" style="margin-top:0">${t("Erkannt werden Zahlungen, die in mindestens zwei Monaten mit fast gleichem Betrag vorkommen. Mit dem Schalter korrigierst du die Erkennung.")}</p>
-        ${fixedExp.map(recRow).join("") || `<div class="hint">${t("Noch keine erkannt. Dafür braucht die App Umsätze aus mindestens zwei Monaten.")}</div>`}
+        ${fixedExp.map(recRow).join("") || emptyState("calendar", t("Noch keine Fixkosten erkannt"), t("Dafür braucht die App Umsätze aus mindestens zwei Monaten. Du kannst eine Zahlung auch selbst als Fixkosten markieren: Umsatz antippen → Schalter „Fixkosten“."))}
         ${otherExp.length ? `<details><summary>${tn(otherExp.length, "{n} weiterer wiederkehrender Empfänger", "{n} weitere wiederkehrende Empfänger")}</summary>${otherExp.map(recRow).join("")}</details>` : ""}
       </section>
       ${regInc.length ? `<section class="card"><h2>${t("Regelmäßige Einnahmen")}</h2>${regInc.map(recRow).join("")}</section>` : ""}`;
@@ -1467,7 +1484,7 @@
       <section class="card">
         <h2>${t("Widget-Schlüssel")}</h2>
         <div class="row"><div class="grow">
-          <div>${w.active ? t("Aktiv seit {date}", { date: dateTime(w.created) }) : t("Kein Schlüssel – das Widget hat keinen Zugriff.")}</div>
+          <div>${w.error ? `<span class="warn-text">${t("Status konnte nicht geladen werden: {msg}", { msg: esc(w.error) })}</span>` : w.active ? t("Aktiv seit {date}", { date: dateTime(w.created) }) : t("Kein Schlüssel – das Widget hat keinen Zugriff.")}</div>
           ${w.active ? `<div class="hint">${w.snapshot_at ? t("Zahlen zuletzt übertragen: {date}", { date: dateTime(w.snapshot_at) }) : t("Noch keine Zahlen übertragen.")}</div>` : ""}
         </div></div>
         ${widgetNewKey ? `
@@ -1539,6 +1556,9 @@
 
   function updatesCard() {
     if (!updatesInfo) return "";
+    if (updatesInfo.error) {
+      return `<section class="card"><h2>${t("Updates")}</h2><p class="note warn-text" style="margin-top:0">${t("Update-Status konnte nicht geladen werden: {msg}", { msg: esc(updatesInfo.error) })}</p></section>`;
+    }
     const s = updatesInfo.status;
     const pending = updatesInfo.anfrage;
     let body;
@@ -1577,8 +1597,8 @@
     const before = updatesInfo?.status?.installiert?.commit;
     const started = Date.now();
     updatesPoll = setInterval(async () => {
-      const info = await API.updates();   // während des Neustarts null -> weiter warten
-      if (info) {
+      const info = await API.updates();   // während des Neustarts null/Fehler -> weiter warten
+      if (info && !info.error) {
         updatesInfo = info;
         const now = info.status?.installiert?.commit;
         if (before && now && now !== before && !info.status.laeuft) {
@@ -1732,6 +1752,10 @@
     if (txBtn) { const t = state.transactions.find((x) => String(x.id) === txBtn.dataset.tx); if (t) openTxSheet(t); return; }
 
     const act = e.target.closest("[data-action]")?.dataset.action;
+    if (act === "goto-stats") {
+      state.view = "stats"; state.statsPeriod = "month"; state.statsMonth = state.month;
+      window.scrollTo(0, 0); return render();
+    }
     if (act === "goto-inbox") { state.view = "transactions"; state.txFilter = "open"; window.scrollTo(0, 0); return render(); }
     if (act === "goto-settings") { state.view = "settings"; state.settingsPage = null; render(); return viewSettingsAsync(); }
 

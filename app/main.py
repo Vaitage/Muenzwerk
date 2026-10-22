@@ -421,6 +421,7 @@ def bank_callback(code: str, state: str, conn=Depends(get_db)):
     provider = get_provider()
     result = provider.finish_connect(code)
     sync.save_connection(conn, provider.name, result.session_id, result.account_ids, result.valid_until, result.accounts)
+    conn.commit()   # Verbindung speichern, bevor der erste Abruf wieder die Bank fragt
     sync.run(conn, provider)
     return RedirectResponse("/?verbunden=1")
 

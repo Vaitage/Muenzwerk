@@ -3,6 +3,7 @@
 import os
 import json
 import sqlite3
+import threading
 from datetime import date, datetime, timedelta
 
 from . import accounts, ledger
@@ -66,7 +67,28 @@ def save_connection(conn: sqlite3.Connection, provider: str, session_id: str,
     )
 
 
+# Immer nur ein Abruf zur Zeit (App, zweites Gerät, Hintergrund-Abruf). Sonst fragen zwei Abrufe
+# die Bank doppelt (Tageslimit) und der zweite scheitert beim Speichern an denselben Umsätzen.
+_RUN_LOCK = threading.Lock()
+WAIT_FOR_RUNNING_SECONDS = 120
+
+
 def run(conn: sqlite3.Connection, provider: BankProvider, psu: dict | None = None, manual: bool = False) -> dict:
+    if not _RUN_LOCK.acquire(blocking=False):
+        # Es läuft schon einer: auf ihn warten statt die Bank ein zweites Mal zu fragen.
+        # Seine Umsätze sind danach gespeichert; die App lädt sie mit dem nächsten Neuladen.
+        if _RUN_LOCK.acquire(timeout=WAIT_FOR_RUNNING_SECONDS):
+            _RUN_LOCK.release()
+        return {"ok": True, "joined": True, "new": 0, "categorized": 0, "uncategorized": 0,
+                "confirmed": 0, "new_pending": 0,
+                "pending": conn.execute("SELECT COUNT(*) FROM transactions WHERE pending = 1").fetchone()[0]}
+    try:
+        return _run(conn, provider, psu, manual)
+    finally:
+        _RUN_LOCK.release()
+
+
+def _run(conn: sqlite3.Connection, provider: BankProvider, psu: dict | None, manual: bool) -> dict:
     row = get_connection(conn)
     if row is None:
         return {"ok": False, "reason": "not_connected"}
@@ -88,7 +110,9 @@ def run(conn: sqlite3.Connection, provider: BankProvider, psu: dict | None = Non
     if hasattr(provider, "psu_headers"):
         provider.psu_headers = psu or None
         provider.ask_pending = manual
-    fetch = lambda: provider.fetch_transactions(row["session_id"], (row["account_ids"] or "").split(","), since)
+    def fetch():
+        return provider.fetch_transactions(row["session_id"], (row["account_ids"] or "").split(","), since)
+
     try:
         try:
             items = fetch()
@@ -127,6 +151,10 @@ def run(conn: sqlite3.Connection, provider: BankProvider, psu: dict | None = Non
         "UPDATE bank_connection SET last_sync = ?, last_error = NULL WHERE id = 1",
         (datetime.now().isoformat(timespec="seconds"),),
     )
+
+    # Erst speichern, dann wieder zur Bank: Während der Abfrage der Kontostände (bis zu 30 s)
+    # darf die Datenbank nicht gesperrt sein, sonst scheitert z. B. ein Zuordnen in der App.
+    conn.commit()
 
     # Kontostände für die Vermögensübersicht (Fehler hier stoppen den Abruf nicht).
     try:

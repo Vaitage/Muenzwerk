@@ -19,8 +19,10 @@ window.API = (() => {
       // Sitzung abgelaufen: Sperrbildschirm zeigen (auth.js)
       if (res.status === 401 && window.Auth) window.Auth.lost();
       let msg = I18N.t("Fehler {status}", { status: res.status });
-      try { msg = translateDetail((await res.json()).detail) || msg; } catch {}
-      throw new Error(msg);
+      try { msg = translateDetail((await res.json()).detail) || msg; } catch { /* Antwort ohne JSON: Standardtext */ }
+      const err = new Error(msg);
+      err.status = res.status;
+      throw err;
     }
     return res.status === 204 ? null : res.json();
   }
@@ -53,9 +55,10 @@ window.API = (() => {
     bankSync: (manual) => req("POST", `/api/bank/sync${manual ? "?manual=1" : ""}`),
     undoStatus: () => req("GET", "/api/undo"),
     undo: () => req("POST", "/api/undo"),
-    // Bereich „Updates“ – nur wenn die Installation das erlaubt (sonst 404 -> null)
-    updates: () => req("GET", "/api/updates").catch(() => null),
-    version: () => req("GET", "/api/version").catch(() => null),
+    // Bereich „Updates“ – nur wenn die Installation das erlaubt (404 -> null = ausgeblendet).
+    // Andere Fehler verschwinden nicht still, sondern kommen als {error} zurück.
+    updates: () => req("GET", "/api/updates").catch((e) => (e.status === 404 ? null : { error: e.message })),
+    version: () => req("GET", "/api/version").catch((e) => { console.warn("Version nicht abrufbar:", e.message); return null; }),
     updateAction: (aktion) => req("POST", "/api/updates", { aktion }),
     // iPhone-Widget (app/widget.py)
     widgetKey: () => req("GET", "/api/widget/key"),

@@ -49,6 +49,9 @@ class BankProvider:
     # So weit zurück wird beim ersten Abruf geholt. Viele Banken liefern ohne
     # erneute Bestätigung nur 90 Tage; mehr fragen schadet nicht.
     history_days = 120
+    # Vom Abruf gesetzt (sync.run): Kopfzeilen des Nutzers bei offener App, „Jetzt abrufen“
+    psu_headers: dict | None = None
+    ask_pending: bool = False
 
     def start_connect(self, redirect_url: str) -> ConnectStart:
         raise NotImplementedError
