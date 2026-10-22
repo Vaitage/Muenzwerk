@@ -2,7 +2,7 @@
   "use strict";
   // Version dieser App-Dateien (gleich wie __version__ in app/__init__.py). Weicht die
   // Version des Servers ab, zeigt das Handy noch eine zwischengespeicherte Fassung.
-  const APP_VERSION = "1.9.0";
+  const APP_VERSION = "1.10.0";
   const A = window.Analytics;
   const { t, tn, ord, locale } = window.I18N;
 
@@ -456,38 +456,36 @@
 
     // Übrig im Monat, darunter Tagesbudget mit 3-Tage-Vorschau
     const heroLabel = r.status === "past" ? t("Übrig am Ende vom {month}", { month: monthName(r.month) }) : r.status === "future" ? t("Geplant übrig im {month}", { month: monthName(r.month) }) : t("Übrig bis Monatsende");
-    const heroNotes = [];
-    if (r.openFixedTotal) heroNotes.push(t("{amount} offene Fixkosten schon abgezogen", { amount: fmt(r.openFixedTotal) }));
-    if (r.goalPlanned) {
-      const named = state.goalRep.goals.filter((g) => g.rate > 0);
-      heroNotes.push(named.length === 1
-        ? t("{amount} fürs Sparziel „{name}“ schon abgezogen", { amount: fmt(r.goalPlanned), name: esc(named[0].goal.name) })
-        : t("{amount} für {n} Sparziele schon abgezogen", { amount: fmt(r.goalPlanned), n: named.length }));
-    }
-    if (T.savings) heroNotes.push(t(T.savings > 0 ? "{amount} zur Seite gelegt" : "{amount} vom Sparkonto geholt", { amount: fmt(Math.abs(T.savings)) }));
-    const pendingSum = (state.ctx.byMonth.get(r.month) || []).filter((x) => x.pending && x.amount_cents < 0).reduce((s, x) => s - x.amount_cents, 0);
-    if (pendingSum) heroNotes.push(t("inkl. {amount} vorgemerkt", { amount: fmt(pendingSum) }));
     const showDays = r.status === "current" && r.preview.length;
+    // Balken: wie viel vom Geld dieses Monats (Einnahmen) noch frei ist; der Strich zeigt,
+    // wie viel vom Monat noch übrig ist – liegt die Füllung rechts davon, reicht es gut.
+    const pool = T.income;
+    const freeShare = pool > 0 ? Math.max(0, Math.min(1, r.budgetLeft / pool)) : null;
+    const dayShare = r.status === "current" ? r.daysLeftIncl / r.days : null;
+    const pct = (x) => (x * 100).toFixed(1) + "%";
+    const bar = freeShare === null ? "" : `<div class="hero-bar" role="img" aria-label="${esc(t("{p} der Einnahmen dieses Monats noch frei", { p: Math.round(freeShare * 100) + " %" }))}">
+        <div class="fill ${dayShare !== null && freeShare < dayShare ? "low" : ""}" style="width:${pct(freeShare)}"></div>
+        ${dayShare !== null ? `<div class="mark" style="left:${pct(dayShare)}"></div>` : ""}
+      </div>`;
     html += `<section class="card hero">
       <div class="sub">${heroLabel}</div>
       <div class="big ${r.budgetLeft >= 0 ? "pos" : "neg"}">${fmt(r.budgetLeft)}</div>
-      ${heroNotes.map((n) => `<div class="sub">${n}</div>`).join("")}
+      ${showDays ? `<div class="per-day">${t("{amount}/Tag", { amount: fmt(r.preview[0].daily) })} · ${tn(r.daysLeftIncl, "noch {n} Tag", "noch {n} Tage")}</div>` : ""}
+      ${bar}
       ${standHtml(r)}
       ${showDays ? `
-        <div class="days-head"><span>${t("Pro Tag verfügbar")}</span><span>${tn(r.daysLeftIncl, "noch {n} Tag", "noch {n} Tage")}</span></div>
         <div class="days3">
           ${r.preview.map((p, i) => {
             const d = new Date(p.iso + "T12:00:00");
-            const name = [t("Heute"), t("Morgen"), t("Übermorgen")][i];
+            const name = i === 0 ? t("Heute") : `${WEEKDAYS[d.getDay()]} ${ord(d.getDate())}`;
             return `<div class="day3 ${i === 0 ? "now" : ""}">
-              <div class="k">${name}<span>${WEEKDAYS[d.getDay()]} ${ord(d.getDate())}</span></div>
+              <div class="k">${name}</div>
               <div class="v ${p.daily >= 0 ? "" : "neg"}">${i === 0 ? fmt(p.daily) : fmt0(p.daily)}</div>
               ${p.due.map((x) => `<div class="due">${esc(x.name)} −${fmt0(x.amount_cents)}</div>`).join("")}
               ${p.incoming.map((x) => `<div class="due in">${esc(x.name)} +${fmt0(x.amount_cents)}</div>`).join("")}
             </div>`;
           }).join("")}
-        </div>
-        <p class="note">${t("Wenn du weiter ausgibst wie bisher, etwa {amount} am Tag für Variables.", { amount: fmt0(r.pace) })}</p>` : ""}
+        </div>` : ""}
     </section>`;
     // Noch nicht zugeordnete Zahlungen: schmale Zeile unter der Kernzahl statt Hinweis darüber
     if (open) {

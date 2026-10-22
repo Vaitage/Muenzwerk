@@ -291,7 +291,9 @@ button.catrow:active { background: var(--surface-2); }
 .lead { color: var(--muted); margin: 4px 4px 0; font-size: 14px; }
 .ic-s { width: 18px; height: 18px; vertical-align: -3px; margin-right: 6px; color: var(--accent); }
 
-.hero .big { font-size: 40px; font-weight: 750; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.hero { text-align: center; }
+.hero .days3 { text-align: left; }
+.hero .big { font-size: 44px; font-weight: 750; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.15; }
 .hero .sub, .kpi .sub { color: var(--muted); font-size: 14px; }
 
 .days-head { display: flex; justify-content: space-between; margin-top: 16px; font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
@@ -814,3 +816,11 @@ button.hm:active { transform: scale(0.94); }
   width: 100%; min-height: 46px; padding: 11px 12px; border-radius: 12px; -webkit-appearance: none; appearance: none;
   border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; font-size: 16px;
 }
+
+/* Übersicht: Tageswert und Balken unter der Kernzahl */
+.per-day { font-size: 16px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.hero-bar { position: relative; height: 10px; border-radius: 5px; background: var(--surface-2); margin: 14px 0 4px; overflow: visible; }
+.hero-bar .fill { height: 100%; border-radius: 5px; background: var(--income); }
+.hero-bar .fill.low { background: var(--warn); }
+.hero-bar .mark { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--text); }
+.hero .stand { justify-content: center; text-align: left; }
