@@ -133,6 +133,14 @@ CREATE TABLE IF NOT EXISTS savings_goals (
     created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Web-Push-Abos (iPhone-Mitteilungen); Endpunkt beim Mitteilungsdienst (Apple, Google, Mozilla)
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    endpoint   TEXT PRIMARY KEY,
+    p256dh     TEXT NOT NULL,
+    auth       TEXT NOT NULL,
+    created    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS auth_sessions (
     token_hash  TEXT PRIMARY KEY,   -- SHA-256 des Cookies, nie das Cookie selbst
     created     TEXT NOT NULL,

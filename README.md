@@ -63,6 +63,8 @@ Taken from the demo with made-up data.
   tap a day for its transactions, plus a year view with the average per weekday.
 - **Savings goals** – the money stays in your current account: set an amount and a date, Münzwerk plans
   the monthly instalment into your daily budget and tells you, from how you actually spend, whether you'll make it.
+- **"Your salary is in" notification** – as soon as a fetch finds your salary, your phone gets a
+  notification (home-screen app, iOS 16.4+). Encrypted end to end; the amount can be hidden.
 - **Search** – payee, reference, category, amount (e.g. `39.95`) or date, with totals
   per month, year or overall.
 - **Bank access monitoring** – PSD2 access expires after 90–180 days. Münzwerk shows
@@ -159,7 +161,9 @@ and neither Münzwerk nor Enable Banking ever see your online banking password.
 | `BANK_PROVIDER` | `demo`, `enablebanking` or `none` |
 | `PUBLIC_URL` | address the app is reachable at (for the redirect from the bank) |
 | `ALLOWED_HOSTS` | host names the app answers to, e.g. `localhost,127.0.0.1,*.ts.net` |
-| `SYNC_INTERVAL_HOURS` | automatic fetch interval (default 6, `0` = off) |
+| `SYNC_INTERVAL_HOURS` | `0` turns the background fetch off; otherwise the interval if `SYNC_TIMES` is empty |
+| `SYNC_TIMES` | fixed background fetch times, local time (default `06:30,10:00,14:00,20:00`) |
+| `PUSH_CONTACT` | contact in the sender ID for notifications (default `mailto:muenzwerk@example.com`) |
 | `ENABLEBANKING_APP_ID`, `ENABLEBANKING_KEY_FILE` | your Enable Banking application |
 | `ENABLEBANKING_BANK`, `ENABLEBANKING_COUNTRY` | e.g. `ING` / `DE` |
 | `AUTH_IDLE_MINUTES`, `AUTH_MAX_HOURS` | lock after inactivity (default 15 min) / at the latest (12 h) |

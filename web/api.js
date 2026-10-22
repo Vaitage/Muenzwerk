@@ -60,6 +60,12 @@ window.API = (() => {
     updates: () => req("GET", "/api/updates").catch((e) => (e.status === 404 ? null : { error: e.message })),
     version: () => req("GET", "/api/version").catch((e) => { console.warn("Version nicht abrufbar:", e.message); return null; }),
     updateAction: (aktion) => req("POST", "/api/updates", { aktion }),
+    // Mitteilungen (app/push.py)
+    pushStatus: () => req("GET", "/api/push"),
+    pushSubscribe: (sub) => req("POST", "/api/push/subscribe", sub),
+    pushUnsubscribe: (endpoint) => req("POST", "/api/push/unsubscribe", { endpoint }),
+    pushSettings: (data) => req("PATCH", "/api/push/settings", data),
+    pushTest: () => req("POST", "/api/push/test"),
     // Sparziele (app/goals.py)
     goals: () => req("GET", "/api/goals"),
     createGoal: (data) => req("POST", "/api/goals", data),

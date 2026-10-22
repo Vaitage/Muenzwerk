@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from datetime import datetime, timedelta
 import os
 import sqlite3
 from contextlib import asynccontextmanager
@@ -13,12 +14,38 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, Field
 
-from . import __version__, accounts, auth, db, goals, ledger, sync, updates, widget
+from . import __version__, accounts, auth, db, goals, ledger, push, sync, updates, widget
 from .bank import BankNotConfigured, get_provider
 
 log = logging.getLogger("haushaltsbuch")
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
-SYNC_INTERVAL_HOURS = float(os.environ.get("SYNC_INTERVAL_HOURS", "6"))
+SYNC_INTERVAL_HOURS = float(os.environ.get("SYNC_INTERVAL_HOURS", "6"))   # 0 = kein Hintergrund-Abruf
+# Feste Uhrzeiten für den Hintergrund-Abruf (Ortszeit). Vier am Tag passen ins übliche Bank-Limit
+# für Abrufe ohne Nutzer. Leer = stattdessen alle SYNC_INTERVAL_HOURS Stunden.
+SYNC_TIMES = os.environ.get("SYNC_TIMES", "06:30,10:00,14:00,20:00")
+
+
+def parse_sync_times(text: str) -> list[tuple[int, int]]:
+    times = []
+    for part in (text or "").split(","):
+        try:
+            h, m = (int(x) for x in part.strip().split(":"))
+        except ValueError:
+            continue
+        if 0 <= h < 24 and 0 <= m < 60:
+            times.append((h, m))
+    return sorted(set(times))
+
+
+def seconds_until_next(now: "datetime", times: list[tuple[int, int]]) -> float:
+    """Sekunden bis zur nächsten festen Abrufzeit (heute oder morgen)."""
+    for h, m in times:
+        at = now.replace(hour=h, minute=m, second=0, microsecond=0)
+        if at > now:
+            return (at - now).total_seconds()
+    h, m = times[0]
+    tomorrow = now.replace(hour=h, minute=m, second=0, microsecond=0) + timedelta(days=1)
+    return (tomorrow - now).total_seconds()
 
 
 def psu_headers(request: Request) -> dict:
@@ -46,9 +73,12 @@ def run_sync_once() -> dict:
 
 
 async def sync_loop() -> None:
-    """Holt regelmäßig neue Umsätze – auch wenn die App gerade zu ist."""
+    """Holt regelmäßig neue Umsätze – auch wenn die App gerade zu ist (z. B. für „Gehalt ist da“)."""
+    times = parse_sync_times(SYNC_TIMES)
+    if times:
+        log.info("Hintergrund-Abruf um %s Uhr", ", ".join(f"{h:02d}:{m:02d}" for h, m in times))
     while True:
-        await asyncio.sleep(SYNC_INTERVAL_HOURS * 3600)
+        await asyncio.sleep(seconds_until_next(datetime.now(), times) if times else SYNC_INTERVAL_HOURS * 3600)
         try:
             result = await asyncio.to_thread(run_sync_once)
             log.info("Automatischer Abruf: %s", result)
@@ -141,6 +171,7 @@ app.include_router(auth.router)
 app.include_router(updates.router)
 app.include_router(widget.router)
 app.include_router(goals.router)
+app.include_router(push.router)
 
 
 def get_db():

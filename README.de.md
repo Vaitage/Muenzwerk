@@ -64,6 +64,8 @@ Aufnahmen aus der Vorschau mit erfundenen Beispieldaten.
   Antippen zeigt die Buchungen des Tages, dazu eine Jahresansicht mit dem Schnitt je Wochentag.
 - **Sparziele** – das Geld bleibt auf dem Girokonto: Betrag und Datum festlegen, Münzwerk plant die Rate im
   Tagesbudget ein und sagt dir anhand deines tatsächlichen Ausgebens, ob du es schaffst.
+- **Mitteilung „Gehalt ist da“** – sobald ein Abruf dein Gehalt findet, kommt eine Mitteilung aufs Handy
+  (Homescreen-App, iOS 16.4+). Ende-zu-Ende verschlüsselt; der Betrag lässt sich ausblenden.
 - **Suche** – Empfänger, Verwendungszweck, Kategorie, Betrag (z. B. `39,95`) oder Datum,
   mit Summen für Monat, Jahr oder insgesamt.
 - **Bankfreigabe im Blick** – die PSD2-Freigabe läuft nach 90–180 Tagen ab. Münzwerk zeigt
@@ -164,7 +166,9 @@ bewegen. Dein Online-Banking-Passwort sehen weder Münzwerk noch Enable Banking.
 | `BANK_PROVIDER` | `demo`, `enablebanking` oder `none` |
 | `PUBLIC_URL` | Adresse der App (für die Rückleitung von der Bank) |
 | `ALLOWED_HOSTS` | Adressen, unter denen die App antwortet, z. B. `localhost,127.0.0.1,*.ts.net` |
-| `SYNC_INTERVAL_HOURS` | automatischer Abruf in Stunden (Standard 6, `0` = aus) |
+| `SYNC_INTERVAL_HOURS` | `0` schaltet den Abruf im Hintergrund aus; sonst Abstand in Stunden, wenn `SYNC_TIMES` leer ist |
+| `SYNC_TIMES` | feste Uhrzeiten für den Abruf im Hintergrund, Ortszeit (Standard `06:30,10:00,14:00,20:00`) |
+| `PUSH_CONTACT` | Kontakt im Absender-Ausweis für Mitteilungen (Standard `mailto:muenzwerk@example.com`) |
 | `ENABLEBANKING_APP_ID`, `ENABLEBANKING_KEY_FILE` | deine App bei Enable Banking |
 | `ENABLEBANKING_BANK`, `ENABLEBANKING_COUNTRY` | z. B. `ING` / `DE` |
 | `AUTH_IDLE_MINUTES`, `AUTH_MAX_HOURS` | Sperre nach Inaktivität (Standard 15 Min.) / spätestens (12 Std.) |

@@ -2,12 +2,15 @@
 
 import os
 import json
+import logging
 import sqlite3
 import threading
 from datetime import date, datetime, timedelta
 
 from . import accounts, ledger
 from .bank import BankProvider, ConsentExpired, setup_problem
+
+log = logging.getLogger("haushaltsbuch")
 
 # Bei späteren Abrufen etwas überlappen, falls die Bank nachträglich bucht.
 OVERLAP_DAYS = 7
@@ -134,6 +137,7 @@ def _run(conn: sqlite3.Connection, provider: BankProvider, psu: dict | None, man
         return {"ok": False, "reason": "error", "detail": str(exc)[:200]}
 
     result = ledger.import_transactions(conn, items, window_start=since)
+    new_ids = result.pop("new_ids", [])
     # Was die Bank geliefert hat – zur Fehlersuche unter „Einstellungen → Bank“
     info = {
         **(getattr(provider, "last_info", None) or {}),
@@ -155,6 +159,14 @@ def _run(conn: sqlite3.Connection, provider: BankProvider, psu: dict | None, man
     # Erst speichern, dann wieder zur Bank: Während der Abfrage der Kontostände (bis zu 30 s)
     # darf die Datenbank nicht gesperrt sein, sonst scheitert z. B. ein Zuordnen in der App.
     conn.commit()
+
+    # Mitteilung „Gehalt ist da“ (Fehler dabei stoppen den Abruf nicht)
+    try:
+        from . import push
+        push.notify_new_transactions(conn, new_ids)
+        conn.commit()
+    except Exception:
+        log.exception("Mitteilung nach dem Abruf fehlgeschlagen")
 
     # Kontostände für die Vermögensübersicht (Fehler hier stoppen den Abruf nicht).
     try:

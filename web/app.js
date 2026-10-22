@@ -2,7 +2,7 @@
   "use strict";
   // Version dieser App-Dateien (gleich wie __version__ in app/__init__.py). Weicht die
   // Version des Servers ab, zeigt das Handy noch eine zwischengespeicherte Fassung.
-  const APP_VERSION = "1.8.0";
+  const APP_VERSION = "1.9.0";
   const A = window.Analytics;
   const { t, tn, ord, locale } = window.I18N;
 
@@ -1428,10 +1428,13 @@
   // ------------------------------------------------------------------ Einstellungen
   let rulesCache = [];
   async function viewSettingsAsync() {
-    [rulesCache, updatesInfo, widgetInfo] = await Promise.all([
+    [rulesCache, updatesInfo, widgetInfo, pushInfo] = await Promise.all([
       API.rules(), API.updates ? API.updates() : null,
-      API.widgetKey ? API.widgetKey().catch((e) => ({ active: false, error: e.message })) : null, window.Auth?.loadPasskeys(),
+      API.widgetKey ? API.widgetKey().catch((e) => ({ active: false, error: e.message })) : null,
+      API.pushStatus ? API.pushStatus().catch((e) => ({ error: e.message })) : null,
+      window.Auth?.loadPasskeys(),
     ]);
+    pushLocal = await pushLocalState();
     if (state.view === "settings") render();
     // App mitten in einem Update geöffnet: weiter beobachten
     if (updatesInfo?.anfrage || updatesInfo?.status?.laeuft) watchUpdates();
@@ -1517,6 +1520,7 @@
         ${widgetInfo ? navRow("widget", "phone", t("iPhone-Widget"), widgetInfo.error ? t("Fehler") : widgetInfo.active ? t("Aktiv") : t("Aus")) : ""}
       </section>
       ${window.Auth ? window.Auth.settingsHtml() : ""}
+      ${pushCard()}
       ${updatesCard()}
       ${languageCard()}
       ${themeCard()}`;
@@ -1604,6 +1608,91 @@
         ${otherExp.length ? `<details><summary>${tn(otherExp.length, "{n} weiterer wiederkehrender Empfänger", "{n} weitere wiederkehrende Empfänger")}</summary>${otherExp.map(recRow).join("")}</details>` : ""}
       </section>
       ${regInc.length ? `<section class="card"><h2>${t("Regelmäßige Einnahmen")}</h2>${regInc.map(recRow).join("")}</section>` : ""}`;
+  }
+
+  // ------------------------------------------------------------------ Mitteilungen (Web Push, app/push.py)
+  // iOS kann Mitteilungen nur für Web-Apps auf dem Homescreen (ab 16.4). Die Erlaubnis muss
+  // direkt beim Tippen angefragt werden; iOS fragt nur ein einziges Mal.
+  let pushInfo = null;        // Antwort von /api/push (null = ausgeblendet, z. B. Vorschau)
+  let pushLocal = { supported: false, subscribed: false };
+
+  const pushSupported = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window && window.isSecureContext;
+  const isStandalone = () => window.matchMedia?.("(display-mode: standalone)").matches || navigator.standalone === true;
+  const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent);
+
+  async function pushLocalState() {
+    if (!pushSupported()) return { supported: false, subscribed: false };
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      const sub = reg ? await reg.pushManager.getSubscription() : null;
+      return { supported: true, subscribed: !!sub, endpoint: sub?.endpoint };
+    } catch { return { supported: true, subscribed: false }; }
+  }
+
+  function b64urlToBytes(s) {
+    const bin = atob(s.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (s.length % 4)) % 4));
+    return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  }
+
+  function pushCard() {
+    if (!pushInfo) return "";
+    let body;
+    if (pushInfo.error) {
+      body = `<p class="note warn-text" style="margin-top:0">${t("Status konnte nicht geladen werden: {msg}", { msg: esc(pushInfo.error) })}</p>`;
+    } else if (!pushLocal.supported) {
+      body = `<p class="note" style="margin-top:0">${isIOS() && !isStandalone()
+        ? t("Mitteilungen gehen nur in der App vom Homescreen (iOS 16.4 oder neuer). Öffne Münzwerk über das Symbol auf dem Homescreen.")
+        : t("Dieser Browser kann keine Mitteilungen empfangen.")}</p>`;
+    } else if (Notification.permission === "denied") {
+      body = `<p class="note warn-text" style="margin-top:0">${t("Mitteilungen sind für Münzwerk abgelehnt. Auf dem iPhone: Symbol vom Homescreen löschen, Münzwerk neu hinzufügen und dann erlauben.")}</p>`;
+    } else if (!pushLocal.subscribed) {
+      body = `<p class="note" style="margin-top:0">${t("Bekomme eine Mitteilung, sobald dein Gehalt gebucht ist – auch wenn Münzwerk zu ist.")}</p>
+        <div class="btn-row"><button class="btn" data-action="push-enable">${t("Mitteilungen erlauben")}</button></div>`;
+    } else {
+      body = `<div class="row"><div class="grow"><div>${t("Gehalt ist da")}</div>
+          <div class="hint">${pushInfo.sync_times
+            ? t("Kommt beim nächsten Abruf nach der Buchung (um {times} Uhr).", { times: esc(pushInfo.sync_times.split(",").map((x) => x.trim()).join(", ")) })
+            : t("Kommt beim nächsten Abruf nach der Buchung, z. B. wenn du Münzwerk öffnest.")}</div></div>${icon("check")}</div>
+        <div class="row"><div class="grow"><div>${t("Betrag in der Mitteilung zeigen")}</div>
+          <div class="hint">${t("Aus: nur „Gehalt ist da“ auf dem Sperrbildschirm")}</div></div>
+          <label class="switch"><input type="checkbox" data-push-amount ${pushInfo.show_amount ? "checked" : ""}><span></span></label></div>
+        <div class="btn-row">
+          <button class="btn secondary" data-action="push-test">${t("Test-Mitteilung")}</button>
+          <button class="btn secondary danger-text" data-action="push-disable">${t("Ausschalten")}</button>
+        </div>`;
+    }
+    return `<section class="card"><h2>${t("Mitteilungen")}</h2>${body}</section>`;
+  }
+
+  async function pushAction(act) {
+    if (act === "push-enable") {
+      // Erste Aktion direkt im Tippen, sonst zeigt iOS keine Nachfrage
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") { toast(t("Mitteilungen nicht erlaubt")); return render(); }
+      try {
+        const reg = await navigator.serviceWorker.register("sw.js");
+        await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64urlToBytes(pushInfo.public_key) });
+        const j = sub.toJSON();
+        await API.pushSubscribe({ endpoint: j.endpoint, keys: j.keys });
+        toast(t("Mitteilungen sind an"));
+      } catch (err) { toast(t("Mitteilungen konnten nicht eingerichtet werden: {msg}", { msg: err.message })); }
+    }
+    if (act === "push-test") {
+      try { await API.pushTest(); toast(t("Test-Mitteilung gesendet")); } catch (err) { toast(err.message); }
+      return;
+    }
+    if (act === "push-disable") {
+      try {
+        const reg = await navigator.serviceWorker.getRegistration();
+        const sub = reg ? await reg.pushManager.getSubscription() : null;
+        if (sub) { await API.pushUnsubscribe(sub.endpoint); await sub.unsubscribe(); }
+        toast(t("Mitteilungen sind aus"));
+      } catch (err) { toast(err.message); }
+    }
+    pushLocal = await pushLocalState();
+    try { pushInfo = await API.pushStatus(); } catch { /* bleibt beim alten Stand */ }
+    if (state.view === "settings") render();
   }
 
   // ------------------------------------------------------------------ iPhone-Widget (App „Scriptable“)
@@ -1984,6 +2073,7 @@
     if (act === "newcat") return openCategorySheet(state.settingsKind);
     if (act === "sync") return runSync(true);
     if (act?.startsWith("widget-")) return widgetAction(act);
+    if (act?.startsWith("push-")) return pushAction(act);
 
     const ub = e.target.closest("[data-update]");
     if (ub) {
@@ -2049,6 +2139,11 @@
   });
 
   document.addEventListener("change", async (e) => {
+    const pa = e.target.closest("[data-push-amount]");
+    if (pa) {
+      try { pushInfo = await API.pushSettings({ show_amount: pa.checked }); } catch (err) { toast(err.message); pa.checked = !pa.checked; }
+      return;
+    }
     if (e.target.closest(".sheet")) return;
     const fx = e.target.closest("[data-fixed]");
     if (fx) {

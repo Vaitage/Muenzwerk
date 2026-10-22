@@ -179,6 +179,7 @@ def import_transactions(conn: sqlite3.Connection, items: list[dict], window_star
     rules = load_rules(conn)
     shifts, shift_day = _shift_info(conn)
     new = categorized = confirmed = 0
+    new_ids: list[str] = []              # neu gebuchte Umsätze dieses Abrufs (für Mitteilungen)
     booked_items = [i for i in items if not i.get("pending")]
     pending_items = [i for i in items if i.get("pending")]
 
@@ -215,6 +216,7 @@ def import_transactions(conn: sqlite3.Connection, items: list[dict], window_star
             confirmed += 1
         categorized += insert(item, False, match)
         new += 1
+        new_ids.append(item["id"])
 
     # 2. Vormerkungen, die die Bank nicht mehr meldet, sind gebucht oder verfallen
     current = {i["id"] for i in pending_items}
@@ -247,6 +249,7 @@ def import_transactions(conn: sqlite3.Connection, items: list[dict], window_star
     return {
         "new": new, "categorized": categorized, "uncategorized": new - categorized,
         "confirmed": confirmed, "new_pending": added_pending, "pending": pending_total,
+        "new_ids": new_ids,
     }
 
 

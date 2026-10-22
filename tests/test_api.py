@@ -214,3 +214,15 @@ def test_doppelte_kategorie_meldet_409(tmp_path, monkeypatch):
         assert client.post("/api/categories", json=new).status_code == 201
         resp = client.post("/api/categories", json=new)
         assert resp.status_code == 409 and "gibt es schon" in resp.json()["detail"]
+
+
+def test_feste_abrufzeiten():
+    from datetime import datetime
+
+    from app.main import parse_sync_times, seconds_until_next
+    times = parse_sync_times("10:00, 06:30,20:00,14:00,kaputt,25:00")
+    assert times == [(6, 30), (10, 0), (14, 0), (20, 0)]
+    assert seconds_until_next(datetime(2026, 10, 22, 9, 59, 0), times) == 60
+    assert seconds_until_next(datetime(2026, 10, 22, 10, 0, 0), times) == 4 * 3600          # 10:00 gerade vorbei -> 14:00
+    assert seconds_until_next(datetime(2026, 10, 22, 21, 0, 0), times) == 9.5 * 3600        # morgen 06:30
+    assert parse_sync_times("") == []
