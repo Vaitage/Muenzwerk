@@ -3,13 +3,13 @@
 // Aufruf: node --test tests/
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const I18N = require("../web/i18n.js");
 const EN = I18N.make("en");
-const FILES = ["web/app.js", "web/auth.js", "web/api.js", "web/analytics.js", "tools/demo-api.js"];
+const FILES = [...readdirSync("web").filter((f) => /^app(-.+)?\.js$/.test(f)).map((f) => "web/" + f), "web/auth.js", "web/api.js", "web/analytics.js", "tools/demo-api.js"];
 const NOT_TEXT = new Set(["income", "expense", "month", "year", "all"]);
 
 // Alle Zeichenketten in "…" innerhalb von t(…), tn(…), tr(…) und I18N.t(…)

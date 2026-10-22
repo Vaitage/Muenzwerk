@@ -4,7 +4,7 @@
 #
 #   bash aktualisieren.sh <pfad-zum-git-bundle>
 #
-# Vom PC aus: bash tools/pi/aktualisieren-vom-pc.sh
+# Vom PC aus: bash tools/pi/vom-pc.sh aktualisieren
 set -euo pipefail
 
 BUNDLE="${1:?Pfad zum Git-Bundle fehlt}"

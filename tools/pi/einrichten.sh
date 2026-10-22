@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Richtet den Raspberry Pi für das Haushaltsbuch ein. Läuft AUF dem Pi.
-# Wird von tools/pi/auf-pi-bringen.sh aufgerufen, kann aber auch von Hand
+# Wird von „tools/pi/vom-pc.sh installieren“ aufgerufen, kann aber auch von Hand
 # gestartet werden. Mehrfach ausführen schadet nicht.
 #
 #   bash einrichten.sh <pfad-zum-git-bundle>

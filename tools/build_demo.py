@@ -14,6 +14,10 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from app import db  # noqa: E402
+
+# App-Dateien in Ladereihenfolge (wie in web/index.html)
+APP_FILES = ["app.js", "app-overview.js", "app-transactions.js", "app-stats.js", "app-wealth.js",
+             "app-sheets.js", "app-settings.js", "app-push-widget.js", "app-start.js"]
 from app.bank.demo import DemoProvider  # noqa: E402
 
 
@@ -61,7 +65,7 @@ def main() -> None:
         (web / "i18n.js").read_text(encoding="utf-8"),
         (web / "analytics.js").read_text(encoding="utf-8"),
         (ROOT / "tools" / "demo-api.js").read_text(encoding="utf-8"),
-        (web / "app.js").read_text(encoding="utf-8"),
+        *[(web / f).read_text(encoding="utf-8") for f in APP_FILES],
     ]).replace("</script", "<\\/script")
 
     html = html.replace('<link rel="stylesheet" href="styles.css">', f"<style>\n{css}\n</style>")
@@ -69,10 +73,10 @@ def main() -> None:
     html = html.replace('  <script src="theme.js"></script>\n', "")   # steckt unten im Skript-Block
     html = html.replace('href="icon-180.png"', f'href="data:image/png;base64,{icon_png}"')
     html = html.replace('<link rel="icon" type="image/png" href="icon-192.png">', f'<link rel="icon" type="image/png" href="data:image/png;base64,{icon_png}">')
-    html = html.replace(
-        '  <script src="icons.js"></script>\n  <script src="i18n.js"></script>\n  <script src="analytics.js"></script>\n  <script src="api.js"></script>\n  <script src="auth.js"></script>\n  <script src="app.js"></script>',
-        f"  <script>\n{scripts}\n  </script>",
-    )
+    tags = ["icons.js", "i18n.js", "analytics.js", "api.js", "auth.js", *APP_FILES]
+    block = "\n".join(f'  <script src="{f}"></script>' for f in tags)
+    assert block in html, "Skript-Liste in index.html passt nicht zu APP_FILES"
+    html = html.replace(block, f"  <script>\n{scripts}\n  </script>")
     html = html.replace("<title>Münzwerk</title>", "<title>Münzwerk Demo</title>")
 
     out = ROOT / "dist" / "demo.html"

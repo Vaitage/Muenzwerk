@@ -1,4 +1,5 @@
-FROM python:3.12-slim
+# Python 3.14 seit 1.11.0 (vorher 3.12); alle Pakete gibt es fertig für arm64 (Raspberry Pi).
+FROM python:3.14-slim
 
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
