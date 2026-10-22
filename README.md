@@ -59,6 +59,8 @@ Taken from the demo with made-up data.
   worth over time. Balances the bank provides come in automatically; everything
   else you enter now and then, and Münzwerk projects it from your transfers.
   Loans are calculated with a repayment plan (interest, debt-free date).
+- **Spending heatmap** – a calendar under *Statistics* shows on which days the money goes;
+  tap a day for its transactions, plus a year view with the average per weekday.
 - **Search** – payee, reference, category, amount (e.g. `39.95`) or date, with totals
   per month, year or overall.
 - **Bank access monitoring** – PSD2 access expires after 90–180 days. Münzwerk shows

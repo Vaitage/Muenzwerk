@@ -472,6 +472,16 @@
     "Zinsen & Dividenden": "Interest & dividends",
     "Geschenke erhalten": "Gifts received",
     "Sonstige Einnahmen": "Other income",
+    // Heatmap (1.7.0)
+    "Welche Ausgaben": "Which expenses",
+    "Alle Ausgaben": "All expenses",
+    "Ausgaben nach Tag": "Spending by day",
+    "An diesem Tag keine Ausgaben.": "No spending on this day.",
+    "Tippe auf einen Tag, um seine Ausgaben zu sehen.": "Tap a day to see what you spent.",
+    "Durchschnitt je Wochentag · {day} ist dein teuerster Tag.": "Average per weekday · {day} is your most expensive day.",
+    "Montag": "Monday", "Dienstag": "Tuesday", "Mittwoch": "Wednesday", "Donnerstag": "Thursday",
+    "Freitag": "Friday", "Samstag": "Saturday", "Sonntag": "Sunday",
+    "Noch keine Ausgaben in diesem Jahr.": "No spending this year yet.",
     // Feinschliff (1.6.0)
     "{n} offen": "{n} open",
     "Noch offen in diesem Monat": "Still due this month",

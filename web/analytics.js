@@ -568,8 +568,71 @@
     return { items, groups, assets, debts, net: assets - debts, series };
   }
 
+  // ------------------------------------------------------------ Heatmap: Ausgaben je Tag
+  // mode "variable": nur variable Ausgaben (ohne Fixkosten, große Ausgaben, Sparen);
+  // mode "all": alle Ausgaben außer Sparen. Zählt nach Buchungstag, Vorgemerktes zählt mit.
+  function spendDays(ctx, mode = "variable") {
+    const days = new Map();
+    for (const t of ctx.transactions) {
+      if (t.amount_cents >= 0) continue;
+      const cls = ctx.classOf(t);
+      if (cls === "savings" || (mode === "variable" && cls !== "variable")) continue;
+      const iso = t.booking_date.slice(0, 10);
+      if (!days.has(iso)) days.set(iso, { cents: 0, items: [] });
+      const d = days.get(iso);
+      d.cents -= t.amount_cents;
+      d.items.push(t);
+    }
+    return days;
+  }
+
+  // Stufen 1–4 nach den eigenen Werten der letzten 365 Tage (Viertel der Tage mit Ausgaben),
+  // damit auch ruhige Monate Unterschiede zeigen. 0 = keine Ausgabe.
+  function heatLevels(days, todayIso) {
+    const from = isoOf(new Date(new Date(todayIso + "T12:00:00").getTime() - 365 * 86400000));
+    const vals = [...days.entries()].filter(([iso, d]) => iso > from && iso <= todayIso && d.cents > 0)
+      .map(([, d]) => d.cents).sort((a, b) => a - b);
+    const q = (p) => (vals.length ? vals[Math.min(vals.length - 1, Math.floor(p * vals.length))] : 0);
+    const cuts = [q(0.25), q(0.5), q(0.75)];
+    return (cents) => (cents <= 0 ? 0 : cents <= cuts[0] ? 1 : cents <= cuts[1] ? 2 : cents <= cuts[2] ? 3 : 4);
+  }
+
+  function heatMonth(ctx, month, mode = "variable") {
+    const days = spendDays(ctx, mode);
+    const level = heatLevels(days, ctx.todayIso);
+    const n = daysIn(month);
+    const list = [];
+    for (let d = 1; d <= n; d++) {
+      const iso = `${month}-${pad(d)}`;
+      const e = days.get(iso) || { cents: 0, items: [] };
+      list.push({ iso, day: d, cents: e.cents, items: e.items, level: level(e.cents), future: iso > ctx.todayIso });
+    }
+    const first = new Date(month + "-01T12:00:00").getDay();       // 0 = Sonntag
+    return { month, offset: (first + 6) % 7, days: list, total: list.reduce((s, x) => s + x.cents, 0) };
+  }
+
+  function heatYear(ctx, year, mode = "variable") {
+    const days = spendDays(ctx, mode);
+    const level = heatLevels(days, ctx.todayIso);
+    const list = [];
+    const sums = new Array(7).fill(0), counts = new Array(7).fill(0);   // Mo = 0
+    for (let dt = new Date(`${year}-01-01T12:00:00`); dt.getFullYear() === Number(year); dt.setDate(dt.getDate() + 1)) {
+      const iso = isoOf(dt);
+      const e = days.get(iso);
+      const cents = e ? e.cents : 0;
+      const wd = (dt.getDay() + 6) % 7;
+      const future = iso > ctx.todayIso;
+      // Für den Wochentag-Schnitt nur Tage, für die es schon Umsätze gibt
+      if (!future && iso.slice(0, 7) >= ctx.firstMonth) { sums[wd] += cents; counts[wd]++; }
+      list.push({ iso, wd, cents, level: level(cents), future });
+    }
+    const weekdays = sums.map((s, i) => ({ wd: i, avg: counts[i] ? s / counts[i] : 0 }));
+    const max = weekdays.reduce((a, b) => (b.avg > a.avg ? b : a), weekdays[0]);
+    return { year: String(year), offset: (new Date(`${year}-01-01T12:00:00`).getDay() + 6) % 7, days: list, weekdays, top: max };
+  }
+
   return {
-    RECURRING, norm, addMonths, daysIn, isoOf, ibanKey,
+    RECURRING, norm, addMonths, daysIn, isoOf, ibanKey, spendDays, heatMonth, heatYear,
     createContext, classify, recurringKey, totalsFor, monthTotals, monthReport, stats, cumulative, recurringList,
     savingsOverview, counterpartyKey,
     linkedTransfers, accountValueAt, loanInfo, wealth, searchTransactions,

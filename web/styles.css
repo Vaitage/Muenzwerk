@@ -743,3 +743,41 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; justif
 .empty-state > .ic { width: 32px; height: 32px; color: var(--muted); margin-bottom: 4px; }
 .empty-state span { color: var(--muted); font-size: 14px; max-width: 34ch; }
 .empty-state .btn { margin-top: 10px; }
+
+/* ---------- Heatmap (1.7.0) ---------- */
+
+.seg.seg-sm button { font-size: 14px; }
+.hm-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.hm-dow { font-size: 12px; color: var(--muted); text-align: center; padding-bottom: 2px; }
+.hm {
+  aspect-ratio: 1; min-height: 44px; border-radius: 10px; display: grid; place-items: center;
+  font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text);
+  transition: transform 120ms var(--ease-out);
+}
+button.hm:active { transform: scale(0.94); }
+.hm.sel { box-shadow: 0 0 0 2px var(--text); }
+.hm.fut { border: 1px dashed var(--line); color: var(--muted); font-weight: 400; }
+/* fünf Stufen einer Farbe; nur Stufe 4 mit weißer Schrift */
+.hl0 { background: var(--surface-2); }
+.hm.hl0 { color: var(--muted); }
+.hl1 { background: color-mix(in srgb, var(--accent-fill) 22%, var(--surface-2)); }
+.hl2 { background: color-mix(in srgb, var(--accent-fill) 45%, var(--surface-2)); }
+.hl3 { background: color-mix(in srgb, var(--accent-fill) 72%, var(--surface-2)); }
+.hl4 { background: var(--accent-fill); }
+.hm.hl4 { color: #fff; }   /* Stufe 3 behält die Textfarbe: hell 5,4:1, dunkel > 7:1 */
+.heat-legend { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); margin-top: 10px; }
+.heat-legend i { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+.heat-day { margin-top: 12px; }
+.heat-day > .line-row { padding: 0 2px 8px; }
+.heat-day .list { background: var(--surface-2); }
+/* Jahr: jeder Tag ein Punkt */
+.hy { display: flex; gap: 2px; justify-content: space-between; }
+.hy-wk { display: flex; flex-direction: column; gap: 2px; flex: 1 1 0; min-width: 0; }
+.hy-wk i { display: block; aspect-ratio: 1; border-radius: 1.5px; }
+.hy-wk i.pad { visibility: hidden; }
+.hy-wk i.fut { background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
+.hy-wd { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 14px; }
+.hy-wd > div { text-align: center; font-size: 12px; color: var(--muted); }
+.hy-wd b { display: block; font-size: 14px; color: var(--text); font-variant-numeric: tabular-nums; }
+.hy-bar { height: 44px; display: flex; align-items: flex-end; justify-content: center; margin-bottom: 4px; }
+.hy-bar i { display: block; width: 60%; min-height: 2px; background: var(--accent); border-radius: 4px 4px 0 0; }

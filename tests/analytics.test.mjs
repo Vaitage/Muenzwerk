@@ -212,3 +212,32 @@ test("Ersparnisse: ein einzelner Ausreißer im Spartopf meldet nicht alle ähnli
   assert.equal(checks.length, 1);
   assert.equal(checks[0].reason, "card");
 });
+
+test("Heatmap: nur variable Ausgaben nach Buchungstag, Stufen und Wochenanfang", () => {
+  const ctx = ctxFor("2026-10-14");
+  const h = A.heatMonth(ctx, "2026-09");
+  assert.equal(h.days.length, 30);
+  assert.equal(h.offset, 1);                                   // 1.9.2026 ist ein Dienstag
+  const byDay = Object.fromEntries(h.days.map((d) => [d.day, d]));
+  assert.equal(byDay[5].cents, 3000);                          // REWE
+  assert.equal(byDay[1].cents, 0);                             // Miete ist Fixkosten
+  assert.equal(byDay[2].cents, 0);                             // Sparen zählt nie
+  assert.equal(byDay[10].cents, 0);                            // MediaMarkt ist eine große Ausgabe
+  assert.ok(byDay[5].level >= 1 && byDay[1].level === 0);
+  const all = A.heatMonth(ctx, "2026-09", "all");
+  assert.equal(all.days[0].cents, 85000);                      // mit allen Ausgaben zählt die Miete
+  assert.equal(all.days[9].cents, 49900);
+  assert.equal(all.days[1].cents, 0);
+  const oct = A.heatMonth(ctx, "2026-10");
+  assert.equal(oct.days.find((d) => d.day === 20).future, true);
+});
+
+test("Heatmap Jahr: Wochentag-Schnitt nur über Tage mit Daten", () => {
+  const ctx = ctxFor("2026-10-14");
+  const y = A.heatYear(ctx, "2026");
+  assert.equal(y.days.length, 365);
+  assert.equal(y.offset, 3);                                    // 1.1.2026 ist ein Donnerstag
+  const total = y.weekdays.reduce((s, w) => s + w.avg, 0);
+  assert.ok(total > 0);
+  assert.ok(y.top.avg >= Math.max(...y.weekdays.map((w) => w.avg)));
+});

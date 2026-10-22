@@ -2,7 +2,7 @@
   "use strict";
   // Version dieser App-Dateien (gleich wie __version__ in app/__init__.py). Weicht die
   // Version des Servers ab, zeigt das Handy noch eine zwischengespeicherte Fassung.
-  const APP_VERSION = "1.6.0";
+  const APP_VERSION = "1.7.0";
   const A = window.Analytics;
   const { t, tn, ord, locale } = window.I18N;
 
@@ -36,6 +36,8 @@
     month: thisMonth,
     statsPeriod: "month",
     statsExpTab: "cat",       // Statistik → Ausgaben: "cat" (Kategorien) oder "fixed"
+    heatMode: "variable",     // Heatmap: "variable" (nur variable Ausgaben) oder "all"
+    heatDay: null,            // in der Heatmap angetippter Tag (YYYY-MM-DD)
     statsMonth: thisMonth,
     statsYear: thisMonth.slice(0, 4),
     settingsKind: "expense",
@@ -776,6 +778,8 @@
         <div class="legend"><span><i class="sw in"></i>${t("Einnahmen")}</span><span><i class="sw out"></i>${t("Ausgaben")}</span></div>
       </section>`;
     }
+
+    if (p !== "all") html += heatCard(p, value);
 
     // Aufschlüsselung
     const row = (label, cents, sub = false, cls = "") => `<div class="line-row ${sub ? "sub-row" : ""}"><span>${label}</span><span class="${cls}">${fmt(cents)}</span></div>`;
@@ -1706,6 +1710,56 @@
     } catch (err) { toast(err.message); }
   }
 
+  // ------------------------------------------------------------------ Heatmap (Statistik)
+  // Monat: Kalender, jeder Tag so kräftig, wie viel an dem Tag ausgegeben wurde; Antippen zeigt die Buchungen.
+  // Jahr: jeder Tag ein Punkt, darunter der Schnitt je Wochentag.
+  function heatCard(p, value) {
+    const mode = state.heatMode;
+    const wdNames = [1, 2, 3, 4, 5, 6, 0].map((i) => WEEKDAYS[i]);
+    const modeSeg = `<div class="seg seg-sm" role="group" aria-label="${t("Welche Ausgaben")}">
+        <button data-heatmode="variable" aria-pressed="${mode === "variable"}">${t("Variable Ausgaben")}</button>
+        <button data-heatmode="all" aria-pressed="${mode === "all"}">${t("Alle Ausgaben")}</button>
+      </div>`;
+    const legend = `<div class="heat-legend" aria-hidden="true">${t("weniger")} ${[0, 1, 2, 3, 4].map((l) => `<i class="hl${l}"></i>`).join("")} ${t("mehr")}</div>`;
+    if (p === "month") {
+      const h = A.heatMonth(state.ctx, value, mode);
+      const sel = h.days.find((d) => d.iso === state.heatDay);
+      const dayLabel = (d) => new Date(d.iso + "T12:00:00").toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" });
+      return `<section class="card heat">
+        <h2>${t("Ausgaben nach Tag")}</h2>
+        ${modeSeg}
+        <div class="hm-grid">
+          ${wdNames.map((w) => `<div class="hm-dow" aria-hidden="true">${w}</div>`).join("")}
+          ${"<div></div>".repeat(h.offset)}
+          ${h.days.map((d) => d.future
+            ? `<div class="hm fut" aria-hidden="true">${d.day}</div>`
+            : `<button class="hm hl${d.level} ${sel === d ? "sel" : ""}" data-heatday="${d.iso}" aria-pressed="${sel === d}"
+                aria-label="${esc(dayLabel(d))}: ${fmt(d.cents)}">${d.day}</button>`).join("")}
+        </div>
+        ${legend}
+        ${sel ? `<div class="heat-day">
+          <div class="line-row"><span>${esc(dayLabel(sel))}</span><span>${fmt(sel.cents)}</span></div>
+          ${sel.items.length ? `<div class="list">${[...sel.items].sort((a, b) => a.amount_cents - b.amount_cents).map(txRow).join("")}</div>`
+            : `<div class="hint">${t("An diesem Tag keine Ausgaben.")}</div>`}
+        </div>` : `<p class="note">${t("Tippe auf einen Tag, um seine Ausgaben zu sehen.")}</p>`}
+      </section>`;
+    }
+    const y = A.heatYear(state.ctx, value, mode);
+    const weeks = [];
+    const cells = [...Array(y.offset).fill(null), ...y.days];
+    for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+    const maxAvg = Math.max(1, ...y.weekdays.map((w) => w.avg));
+    return `<section class="card heat">
+      <h2>${t("Ausgaben nach Tag")}</h2>
+      ${modeSeg}
+      <div class="hy" aria-hidden="true">${weeks.map((w) => `<div class="hy-wk">${w.map((d) => `<i class="${d ? (d.future ? "fut" : `hl${d.level}`) : "pad"}"></i>`).join("")}</div>`).join("")}</div>
+      ${legend}
+      <div class="hy-wd">${y.weekdays.map((w, i) => `<div><div class="hy-bar"><i style="height:${Math.round((w.avg / maxAvg) * 100)}%"></i></div>
+        ${wdNames[i]}<b>${fmt0(w.avg)}</b></div>`).join("")}</div>
+      <p class="note">${y.top.avg > 0 ? t("Durchschnitt je Wochentag · {day} ist dein teuerster Tag.", { day: [t("Montag"), t("Dienstag"), t("Mittwoch"), t("Donnerstag"), t("Freitag"), t("Samstag"), t("Sonntag")][y.top.wd] }) : t("Noch keine Ausgaben in diesem Jahr.")}</p>
+    </section>`;
+  }
+
   function navStats(dir) {
     const ctx = state.ctx;
     if (state.statsPeriod === "month") {
@@ -1739,6 +1793,10 @@
     const sn = e.target.closest("[data-snav]");
     if (sn) return navStats(Number(sn.dataset.snav));
 
+    const hd = e.target.closest("[data-heatday]");
+    if (hd) { state.heatDay = state.heatDay === hd.dataset.heatday ? null : hd.dataset.heatday; return render(); }
+    const hmode = e.target.closest("[data-heatmode]");
+    if (hmode) { state.heatMode = hmode.dataset.heatmode; return render(); }
     const et = e.target.closest("[data-exptab]");
     if (et) { state.statsExpTab = et.dataset.exptab; return render(); }
     const sc = e.target.closest("[data-statcat]");
