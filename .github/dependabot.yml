@@ -1,9 +1,12 @@
 version: 2
 updates:
-  - package-ecosystem: pip
+  - package-ecosystem: pip          # requirements.in -> requirements.txt (pip-compile mit Prüfsummen)
     directory: /
     schedule:
       interval: monthly
+    groups:
+      python-pakete:                  # alle Paket-Updates in einem Vorschlag
+        patterns: ["*"]
   - package-ecosystem: docker
     directory: /
     schedule:

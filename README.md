@@ -106,7 +106,7 @@ python tools/build_demo.py      # creates dist/demo.html
 Or run the server locally with the demo bank:
 
 ```bash
-pip install -r requirements.txt
+pip install --require-hashes -r requirements.txt
 HAUSHALTSBUCH_AUTH=0 uvicorn app.main:app --reload
 ```
 
@@ -234,7 +234,7 @@ Found a vulnerability? Please report it privately, see [SECURITY.md](SECURITY.md
 ## Development
 
 ```bash
-pip install -r requirements.txt pytest
+pip install --require-hashes -r requirements.txt && pip install pytest
 pytest                                  # server
 node --test tests/*.test.mjs            # calculations and translations
 python tools/build_demo.py && python tools/ui_pruefung.py   # contrast, text size, touch targets (needs Playwright)

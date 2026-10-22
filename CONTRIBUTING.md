@@ -18,7 +18,7 @@ so please be patient with reviews. Issues and pull requests in **English or Germ
 ## Getting started
 
 ```bash
-pip install -r requirements.txt pytest
+pip install --require-hashes -r requirements.txt && pip install pytest
 HAUSHALTSBUCH_AUTH=0 uvicorn app.main:app --reload    # http://localhost:8000, demo bank
 pytest
 node --test tests/*.test.mjs
@@ -26,6 +26,10 @@ node --test tests/*.test.mjs
 
 `python tools/build_demo.py` builds a self-contained demo (`dist/demo.html`) that's handy
 for UI work and screenshots.
+
+**Dependencies** are pinned with hashes. Edit `requirements.in`, then regenerate with Python 3.14:
+`pip install pip-tools && pip-compile --generate-hashes --strip-extras --no-emit-index-url requirements.in`.
+The base image in the `Dockerfile` is pinned by digest. Dependabot proposes updates monthly.
 
 ## Translations
 
