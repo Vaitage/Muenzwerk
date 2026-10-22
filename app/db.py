@@ -118,6 +118,21 @@ CREATE TABLE IF NOT EXISTS passkeys (
     last_used   TEXT
 );
 
+-- Sparziele: Das Geld bleibt auf dem Girokonto. Die App plant je Monat eine Rate im Budget ein;
+-- fürs Ziel zählt, was am Monatsende übrig bleibt (höchstens die Rate). Rechnung: web/analytics.js.
+CREATE TABLE IF NOT EXISTS savings_goals (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    name          TEXT NOT NULL,
+    icon          TEXT NOT NULL DEFAULT 'piggy',
+    target_cents  INTEGER NOT NULL,
+    target_month  TEXT,                 -- YYYY-MM, bis wann; NULL = ohne Datum
+    monthly_cents INTEGER,              -- feste Rate, nur ohne Datum
+    start_month   TEXT NOT NULL,        -- ab diesem Budgetmonat
+    start_cents   INTEGER NOT NULL DEFAULT 0,   -- schon vorhanden
+    archived      INTEGER NOT NULL DEFAULT 0,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS auth_sessions (
     token_hash  TEXT PRIMARY KEY,   -- SHA-256 des Cookies, nie das Cookie selbst
     created     TEXT NOT NULL,

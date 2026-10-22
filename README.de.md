@@ -62,6 +62,8 @@ Aufnahmen aus der Vorschau mit erfundenen Beispieldaten.
   rechnet Münzwerk mit deinen Umbuchungen weiter. Kredite mit Tilgungsplan.
 - **Ausgaben-Heatmap** – ein Kalender in der Statistik zeigt, an welchen Tagen das Geld rausgeht;
   Antippen zeigt die Buchungen des Tages, dazu eine Jahresansicht mit dem Schnitt je Wochentag.
+- **Sparziele** – das Geld bleibt auf dem Girokonto: Betrag und Datum festlegen, Münzwerk plant die Rate im
+  Tagesbudget ein und sagt dir anhand deines tatsächlichen Ausgebens, ob du es schaffst.
 - **Suche** – Empfänger, Verwendungszweck, Kategorie, Betrag (z. B. `39,95`) oder Datum,
   mit Summen für Monat, Jahr oder insgesamt.
 - **Bankfreigabe im Blick** – die PSD2-Freigabe läuft nach 90–180 Tagen ab. Münzwerk zeigt

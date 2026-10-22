@@ -61,6 +61,8 @@ Taken from the demo with made-up data.
   Loans are calculated with a repayment plan (interest, debt-free date).
 - **Spending heatmap** – a calendar under *Statistics* shows on which days the money goes;
   tap a day for its transactions, plus a year view with the average per weekday.
+- **Savings goals** – the money stays in your current account: set an amount and a date, Münzwerk plans
+  the monthly instalment into your daily budget and tells you, from how you actually spend, whether you'll make it.
 - **Search** – payee, reference, category, amount (e.g. `39.95`) or date, with totals
   per month, year or overall.
 - **Bank access monitoring** – PSD2 access expires after 90–180 days. Münzwerk shows

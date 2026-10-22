@@ -241,3 +241,56 @@ test("Heatmap Jahr: Wochentag-Schnitt nur über Tage mit Daten", () => {
   assert.ok(total > 0);
   assert.ok(y.top.avg >= Math.max(...y.weekdays.map((w) => w.avg)));
 });
+
+// Beispieldaten: Überschuss Jul 1.910 €, Aug 1.910 €, Sep 1.411 € (MediaMarkt), Okt läuft
+test("Sparziel: Rate aus Ziel und Datum, nur die Rate zählt, Plan und Status", () => {
+  const ctx = ctxFor("2026-10-14");
+  const goal = { id: 1, name: "Urlaub", target_cents: 240000, target_month: "2027-05", start_month: "2026-08", start_cents: 0 };
+  const r = A.goalsReport(ctx, [goal]);
+  const g = r.goals[0];
+  assert.deepEqual(g.history.map((h) => [h.month, h.rate, h.credit]), [["2026-08", 24000, 24000], ["2026-09", 24000, 24000]]);
+  assert.equal(g.saved, 48000);                // mehr Überschuss zählt nicht mit
+  assert.equal(g.rate, 24000);                 // (2.400 − 480) ÷ 8 Monate Okt–Mai
+  assert.equal(r.planned, 24000);
+  assert.equal(g.planned, 48000);              // laut Plan nach 2 von 10 Monaten
+  assert.equal(g.status, "ok");
+  assert.equal(g.reach, "2027-05");
+});
+
+test("Sparziel: zu wenig Überschuss wird im Verhältnis der Raten verteilt", () => {
+  const ctx = ctxFor("2026-10-14");
+  const a = { id: 1, name: "A", target_cents: 240000, target_month: "2027-05", start_month: "2026-09", start_cents: 0 };
+  const b = { id: 2, name: "B", target_cents: 500000, monthly_cents: 200000, start_month: "2026-09", start_cents: 0 };
+  const r = A.goalsReport(ctx, [a, b]);
+  const [ga, gb] = r.goals;
+  // September: Raten 26.667 + 200.000 > Überschuss 141.100 → anteilig
+  assert.equal(ga.history[0].rate, 26667);
+  assert.equal(ga.history[0].credit + gb.history[0].credit, 141100);
+  assert.equal(ga.history[0].credit, Math.round((26667 * 141100) / 226667));
+  assert.equal(gb.status, null);               // ohne Datum: nur Prognose
+  assert.ok(gb.reach > "2026-10");
+});
+
+test("Sparziel: Minus-Monat zieht ab, nie unter 0; erreicht und archiviert", () => {
+  const extra = sample();
+  extra.push(tx("2026-08-20", -400000, "Autohaus", 5));         // August wird ein Minus-Monat
+  const ctx = A.createContext({ transactions: extra, categories, settings: { large_expense_cents: 25000 }, today: "2026-10-14" });
+  const g = { id: 1, name: "X", target_cents: 100000, monthly_cents: 30000, start_month: "2026-07", start_cents: 0 };
+  const r = A.goalsReport(ctx, [g]).goals[0];
+  assert.deepEqual(r.history.map((h) => h.credit), [30000, -30000, 30000]);
+  assert.equal(r.saved, 30000);
+  const done = A.goalsReport(ctxFor("2026-10-14"), [{ ...g, target_cents: 50000 }]).goals[0];
+  assert.equal(done.status, "reached");
+  assert.equal(done.reached, "2026-08");
+  assert.equal(done.rate, 0);
+  assert.deepEqual(A.goalsReport(ctxFor("2026-10-14"), [{ ...g, archived: true }]), { goals: [], planned: 0 });
+});
+
+test("Sparziel: hinter dem Plan → zu spät und höhere Rate ab nächstem Monat", () => {
+  const ctx = ctxFor("2026-10-14");
+  const g = { id: 1, name: "Groß", target_cents: 2000000, target_month: "2026-12", start_month: "2026-09", start_cents: 0 };
+  const r = A.goalsReport(ctx, [g]).goals[0];
+  assert.equal(r.status, "late");
+  assert.ok(r.lateBy >= 2);
+  assert.ok(r.needNext > r.rate);
+});

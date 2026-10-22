@@ -60,6 +60,11 @@ window.API = (() => {
     updates: () => req("GET", "/api/updates").catch((e) => (e.status === 404 ? null : { error: e.message })),
     version: () => req("GET", "/api/version").catch((e) => { console.warn("Version nicht abrufbar:", e.message); return null; }),
     updateAction: (aktion) => req("POST", "/api/updates", { aktion }),
+    // Sparziele (app/goals.py)
+    goals: () => req("GET", "/api/goals"),
+    createGoal: (data) => req("POST", "/api/goals", data),
+    updateGoal: (id, data) => req("PATCH", `/api/goals/${id}`, data),
+    deleteGoal: (id) => req("DELETE", `/api/goals/${id}`),
     // iPhone-Widget (app/widget.py)
     widgetKey: () => req("GET", "/api/widget/key"),
     widgetNewKey: () => req("POST", "/api/widget/key"),

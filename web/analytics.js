@@ -568,6 +568,91 @@
     return { items, groups, assets, debts, net: assets - debts, series };
   }
 
+  // ------------------------------------------------------------ Sparziele
+  // Das Geld bleibt auf dem Girokonto. Je Monat gibt es eine Rate, die im Budget eingeplant wird.
+  // Fürs Ziel zählt, was am Monatsende übrig bleibt (Überschuss), höchstens aber die Rate.
+  // Reicht der Überschuss nicht für alle Raten, wird er im Verhältnis der Raten verteilt;
+  // ein Minus-Monat zieht im selben Verhältnis wieder ab (nie unter 0).
+  const monthsBetween = (a, b) => (Number(b.slice(0, 4)) * 12 + Number(b.slice(5, 7))) - (Number(a.slice(0, 4)) * 12 + Number(a.slice(5, 7)));
+
+  function goalRate(s, m) {
+    const g = s.goal;
+    if (s.reached || m < g.start_month) return 0;
+    const rest = g.target_cents - s.saved;
+    if (rest <= 0) return 0;
+    if (g.target_month) return Math.ceil(rest / Math.max(1, monthsBetween(m, g.target_month) + 1));
+    return Math.min(rest, g.monthly_cents || 0);
+  }
+
+  function distribute(rates, surplus) {
+    const total = rates.reduce((a, b) => a + b, 0);
+    if (!total) return rates.map(() => 0);
+    if (surplus >= total) return rates.slice();
+    return rates.map((r) => Math.round((r * surplus) / total));
+  }
+
+  function step(states, m, surplus, record) {
+    const rates = states.map((s) => goalRate(s, m));
+    const credits = distribute(rates, surplus);
+    states.forEach((s, i) => {
+      if (m < s.goal.start_month || s.reached) return;
+      const before = s.saved;
+      s.saved = Math.max(0, s.saved + credits[i]);
+      // was tatsächlich dazukam bzw. wegging (ein Minus-Monat kann das Ziel nicht unter 0 drücken)
+      if (record) s.history.push({ month: m, rate: rates[i], credit: s.saved - before });
+      if (s.saved >= s.goal.target_cents) s.reached = m;
+    });
+    return { rates, credits };
+  }
+
+  function goalsReport(ctx, goals) {
+    const active = (goals || []).filter((g) => !g.archived);
+    const cur = ctx.currentMonth;
+    const states = active.map((g) => ({ goal: g, saved: g.start_cents || 0, history: [], reached: null }));
+    if (!states.length) return { goals: [], planned: 0 };
+
+    // Abgeschlossene Monate: tatsächlicher Überschuss
+    const first = active.map((g) => g.start_month).sort()[0];
+    for (let m = first; m < cur; m = addMonths(m, 1)) step(states, m, monthTotals(m, ctx).surplus, true);
+
+    // Laufender Monat: Rate ist eingeplant; was voraussichtlich dazukommt, sagt die Prognose der Übersicht
+    const report = monthReport(cur, ctx);
+    const ratesNow = states.map((s) => goalRate(s, cur));
+    const expectedNow = distribute(ratesNow, report.forecastEnd);
+
+    // Prognose: Schnitt der letzten 3 abgeschlossenen Monate mit Umsätzen
+    const past = [];
+    for (let m = addMonths(cur, -1); past.length < 3 && m >= ctx.firstMonth; m = addMonths(m, -1)) past.push(monthTotals(m, ctx).surplus);
+    const avg = past.length ? past.reduce((a, b) => a + b, 0) / past.length : report.forecastEnd;
+    const sim = states.map((s, i) => ({ goal: s.goal, saved: Math.max(0, s.saved + (s.reached ? 0 : expectedNow[i])), history: [], reached: s.reached }));
+    sim.forEach((s) => { if (!s.reached && s.saved >= s.goal.target_cents) s.reached = cur; });
+    if (avg > 0) for (let m = addMonths(cur, 1), n = 0; n < 240 && sim.some((s) => !s.reached); m = addMonths(m, 1), n++) step(sim, m, avg, false);
+
+    const result = states.map((s, i) => {
+      const g = s.goal;
+      const rate = ratesNow[i];
+      const reach = sim[i].reached;
+      let status = null, lateBy = 0, needNext = null, planned = null;
+      if (s.reached) status = "reached";
+      else if (g.target_month) {
+        lateBy = reach ? Math.max(0, monthsBetween(g.target_month, reach)) : null;
+        status = reach == null ? "late" : lateBy === 0 ? "ok" : lateBy === 1 ? "tight" : "late";
+        const left = monthsBetween(cur, g.target_month);           // Monate nach dem laufenden
+        const rest = g.target_cents - s.saved - Math.max(0, expectedNow[i]);
+        needNext = left > 0 ? Math.max(0, Math.ceil(rest / left)) : null;
+        const total = monthsBetween(g.start_month, g.target_month) + 1;
+        const done = Math.min(total, Math.max(0, monthsBetween(g.start_month, cur)));
+        planned = Math.round((g.start_cents || 0) + (g.target_cents - (g.start_cents || 0)) * (done / total));
+      }
+      return {
+        goal: g, saved: s.saved, reached: s.reached, rate, perDay: rate / daysIn(cur),
+        expectedNow: expectedNow[i], reach, status, lateBy, needNext, planned,
+        history: s.history.slice(-3),
+      };
+    });
+    return { goals: result, planned: ratesNow.reduce((a, b) => a + b, 0), avgSurplus: avg };
+  }
+
   // ------------------------------------------------------------ Heatmap: Ausgaben je Tag
   // mode "variable": nur variable Ausgaben (ohne Fixkosten, große Ausgaben, Sparen);
   // mode "all": alle Ausgaben außer Sparen. Zählt nach Buchungstag, Vorgemerktes zählt mit.
@@ -632,7 +717,7 @@
   }
 
   return {
-    RECURRING, norm, addMonths, daysIn, isoOf, ibanKey, spendDays, heatMonth, heatYear,
+    RECURRING, norm, addMonths, daysIn, isoOf, ibanKey, spendDays, heatMonth, heatYear, goalsReport,
     createContext, classify, recurringKey, totalsFor, monthTotals, monthReport, stats, cumulative, recurringList,
     savingsOverview, counterpartyKey,
     linkedTransfers, accountValueAt, loanInfo, wealth, searchTransactions,

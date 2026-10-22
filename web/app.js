@@ -2,7 +2,7 @@
   "use strict";
   // Version dieser App-Dateien (gleich wie __version__ in app/__init__.py). Weicht die
   // Version des Servers ab, zeigt das Handy noch eine zwischengespeicherte Fassung.
-  const APP_VERSION = "1.7.0";
+  const APP_VERSION = "1.8.0";
   const A = window.Analytics;
   const { t, tn, ord, locale } = window.I18N;
 
@@ -57,11 +57,13 @@
   const openCount = () => state.transactions.filter((t) => t.category_id == null).length;
 
   async function loadAll() {
-    const [cats, txs, ovs, settings, bank, accounts, undo, server] = await Promise.all([
+    const [cats, txs, ovs, settings, bank, accounts, undo, server, goals] = await Promise.all([
       API.categories(), API.transactions(), API.overrides(), API.settings(), API.bankStatus(), API.accounts(),
       API.undoStatus ? API.undoStatus() : { count: 0 },
       API.version ? API.version() : null,
+      API.goals ? API.goals() : [],
     ]);
+    state.goals = goals || [];
     state.undoCount = undo.count;
     state.serverVersion = server?.version || null;
     state.accounts = accounts;
@@ -73,13 +75,14 @@
     state.ctx = A.createContext({
       transactions: txs, categories: cats, overrides: state.overrides, settings, today,
     });
+    state.goalRep = A.goalsReport(state.ctx, state.goals);
     sendWidgetSnapshot();
   }
 
   // Zahlen für das iPhone-Widget: dieselben wie in der Übersicht. Der Server
   // speichert sie nur, wenn ein Widget-Schlüssel existiert (app/widget.py).
   function widgetSnapshot() {
-    const r = A.monthReport(thisMonth, state.ctx);
+    const r = withGoals(A.monthReport(thisMonth, state.ctx));
     const pending = (state.ctx.byMonth.get(thisMonth) || []).filter((x) => x.pending && x.amount_cents < 0)
       .reduce((s, x) => s - x.amount_cents, 0);
     return {
@@ -433,8 +436,20 @@
   }
 
   // ------------------------------------------------------------------ Übersicht
+  // Eingeplante Sparraten ziehen „Übrig bis Monatsende“ und das Tagesbudget herunter (nur laufender Monat)
+  function withGoals(r) {
+    const planned = r.status === "current" ? state.goalRep?.planned || 0 : 0;
+    if (!planned) return { ...r, goalPlanned: 0 };
+    return {
+      ...r,
+      goalPlanned: planned,
+      budgetLeft: r.budgetLeft - planned,
+      preview: r.preview.map((p, k) => ({ ...p, daily: p.daily - planned / Math.max(1, r.daysLeftIncl - k) })),
+    };
+  }
+
   function viewOverview() {
-    const r = A.monthReport(state.month, state.ctx);
+    const r = withGoals(A.monthReport(state.month, state.ctx));
     const T = r.totals;
     const open = openCount();
     let html = bankNotices();
@@ -443,6 +458,12 @@
     const heroLabel = r.status === "past" ? t("Übrig am Ende vom {month}", { month: monthName(r.month) }) : r.status === "future" ? t("Geplant übrig im {month}", { month: monthName(r.month) }) : t("Übrig bis Monatsende");
     const heroNotes = [];
     if (r.openFixedTotal) heroNotes.push(t("{amount} offene Fixkosten schon abgezogen", { amount: fmt(r.openFixedTotal) }));
+    if (r.goalPlanned) {
+      const named = state.goalRep.goals.filter((g) => g.rate > 0);
+      heroNotes.push(named.length === 1
+        ? t("{amount} fürs Sparziel „{name}“ schon abgezogen", { amount: fmt(r.goalPlanned), name: esc(named[0].goal.name) })
+        : t("{amount} für {n} Sparziele schon abgezogen", { amount: fmt(r.goalPlanned), n: named.length }));
+    }
     if (T.savings) heroNotes.push(t(T.savings > 0 ? "{amount} zur Seite gelegt" : "{amount} vom Sparkonto geholt", { amount: fmt(Math.abs(T.savings)) }));
     const pendingSum = (state.ctx.byMonth.get(r.month) || []).filter((x) => x.pending && x.amount_cents < 0).reduce((s, x) => s - x.amount_cents, 0);
     if (pendingSum) heroNotes.push(t("inkl. {amount} vorgemerkt", { amount: fmt(pendingSum) }));
@@ -862,6 +883,140 @@
     words: () => t("Klingt nach Sparen, zählt aber als Ausgabe"),
     card: () => t("Kartenzahlung in einem Spartopf – eher ein Einkauf?"),
   };
+  // ------------------------------------------------------------------ Sparziele (Vermögen)
+  // Das Geld bleibt auf dem Girokonto: die Rate ist im Tagesbudget eingeplant, fürs Ziel zählt,
+  // was am Monatsende übrig bleibt (höchstens die Rate). Rechnung: A.goalsReport.
+  const GOAL_ICONS = ["piggy", "plane", "home", "car", "gift", "shield", "heart", "laptop", "graduation", "paw", "shirt", "coins"];
+
+  function goalStatus(g) {
+    const gl = g.goal;
+    if (g.status === "reached") return { cls: "ok", text: t("erreicht im {month}", { month: monthLabel(g.reached) }) };
+    if (!gl.target_month) return g.reach ? { cls: "", text: t("erreicht ca. {month}", { month: monthLabel(g.reach) }) } : { cls: "late", text: t("nicht absehbar") };
+    if (g.status === "ok") return { cls: "ok", text: t("im Plan") };
+    if (g.reach == null) return { cls: "late", text: t("nicht absehbar") };
+    return { cls: g.status === "tight" ? "tight" : "late", text: tn(g.lateBy, "{n} Monat zu spät", "{n} Monate zu spät") };
+  }
+
+  function goalRow(g) {
+    const gl = g.goal;
+    const pct = (c) => Math.max(0, Math.min(100, (c / gl.target_cents) * 100));
+    const st = goalStatus(g);
+    const lines = [];
+    if (g.rate > 0) lines.push([t("Diesen Monat eingeplant"), t("{amount} · {day} pro Tag", { amount: fmt0(g.rate), day: fmt(Math.round(g.perDay)) })]);
+    if (g.status !== "reached") {
+      lines.push([t("Kommt diesen Monat voraussichtlich dazu"), `<span class="${g.expectedNow >= 0 ? "pos" : "neg"}">${signed(g.expectedNow)}</span>`]);
+      lines.push([t("Wenn du weiter so ausgibst"), g.reach ? t("erreicht {month}", { month: monthLabel(g.reach) }) : t("nicht absehbar")]);
+      if (gl.target_month && g.status !== "ok" && g.needNext) {
+        lines.push([t("Für {month} nötig ab {next}", { month: monthLabel(gl.target_month), next: monthName(addMonths(thisMonth, 1)) }), t("{amount} pro Monat", { amount: fmt0(g.needNext) })]);
+      }
+    }
+    const months = [...g.history.map((h) => ({ label: shortMonth(h.month), cents: h.credit, run: false })),
+      ...(g.status === "reached" ? [] : [{ label: t("{month} (läuft)", { month: shortMonth(thisMonth) }), cents: g.expectedNow, run: true }])];
+    return `<div class="goal">
+      <button class="goal-head" data-goal="${gl.id}" aria-label="${t("Sparziel bearbeiten: {name}", { name: esc(gl.name) })}">
+        <div class="bubble">${icon(gl.icon)}</div>
+        <div class="grow"><b>${esc(gl.name)}</b><div class="hint">${gl.target_month ? t("bis {month}", { month: monthLabel(gl.target_month) }) : t("{amount} pro Monat", { amount: fmt0(gl.monthly_cents) })} · ${t("bleibt auf dem Girokonto")}</div></div>
+        <b class="goal-sum">${fmt0(g.saved)} / ${fmt0(gl.target_cents)}</b>
+      </button>
+      <div class="pbar" role="img" aria-label="${t("{saved} von {target} gespart", { saved: fmt0(g.saved), target: fmt0(gl.target_cents) })}">
+        <i style="width:${pct(g.saved)}%"></i>
+        ${g.expectedNow > 0 && g.status !== "reached" ? `<u style="left:${pct(g.saved)}%;width:${pct(g.saved + g.expectedNow) - pct(g.saved)}%"></u>` : ""}
+        ${g.planned != null && g.status !== "reached" ? `<b style="left:${pct(g.planned)}%"></b>` : ""}
+      </div>
+      <div class="goal-meta"><span>${g.planned != null && g.status !== "reached" ? t("Strich = laut Plan bis jetzt {amount}", { amount: fmt0(g.planned) }) : ""}</span><span class="goal-st ${st.cls}">${st.text}</span></div>
+      ${lines.length ? `<div class="goal-box">${lines.map(([a, b]) => `<div class="line-row"><span>${a}</span><span>${b}</span></div>`).join("")}</div>` : ""}
+      ${months.length ? `<div class="goal-months">${months.map((m) => `<div>${esc(m.label)}<b class="${m.run ? "" : m.cents > 0 ? "pos" : m.cents < 0 ? "neg" : ""}">${m.run ? "~" : ""}${signed(m.cents).replace(/,\d\d(?=\s?€)/, "")}</b></div>`).join("")}</div>` : ""}
+    </div>`;
+  }
+
+  function goalsCard() {
+    if (!API.goals) return "";
+    const rep = state.goalRep || { goals: [] };
+    // Kontrolle: Liegt auf dem Girokonto weniger, als fürs Ziel gezählt ist?
+    let check = "";
+    const saved = rep.goals.reduce((s, g) => s + g.saved, 0);
+    const giro = A.wealth(state.ctx, state.accounts).items.find((a) => a.type === "giro" && a.current != null);
+    if (giro && saved > 0 && giro.current < saved) {
+      check = `<div class="setup-hint">${icon("help")}<div><b>${t("Weniger auf dem Konto als gespart")}</b>
+        <span>${t("Auf dem Girokonto liegen {balance}, für Sparziele gezählt sind {saved}. Überweisungen auf ein Sparkonto sind auch gespart – dann passt es trotzdem.", { balance: fmt(giro.current), saved: fmt(saved) })}</span></div></div>`;
+    }
+    return `<section class="card goals">
+      <h2>${t("Sparziele")}</h2>
+      ${rep.goals.length ? rep.goals.map(goalRow).join("") : emptyState("piggy", t("Noch kein Sparziel"), t("Lege ein Ziel mit Betrag und Datum an. Münzwerk plant die Rate in deinem Tagesbudget ein; das Geld bleibt auf dem Girokonto."))}
+      ${check}
+      <button class="btn secondary block" data-action="newgoal">${icon("plus")} ${t("Sparziel anlegen")}</button>
+    </section>`;
+  }
+
+  function openGoalSheet(goal) {
+    const g = goal || {};
+    let chosenIcon = g.icon || "piggy";
+    let dated = goal ? !!g.target_month : true;
+    let startNext = false;
+    const sheet = openSheet(`
+      <h3>${goal ? t("Sparziel bearbeiten") : t("Sparziel anlegen")}</h3>
+      <div class="meta">${t("Das Geld bleibt auf dem Girokonto. Die Rate wird jeden Monat in deinem Tagesbudget eingeplant.")}</div>
+      <label class="field"><span>${t("Name")}</span><input type="text" id="g-name" maxlength="60" autocomplete="off" value="${esc(g.name || "")}" placeholder="${t("z. B. Urlaub")}"></label>
+      <div class="field"><span>${t("Symbol")}</span><div class="icon-pick">${GOAL_ICONS.map((i) => `<button data-icon="${i}" aria-pressed="${i === chosenIcon}" aria-label="${i}">${icon(i)}</button>`).join("")}</div></div>
+      <label class="field"><span>${t("Zielbetrag in €")}</span><input type="text" id="g-target" inputmode="decimal" value="${euroInput(g.target_cents)}" placeholder="${decimal(2400, 2)}"></label>
+      <div class="seg" role="group" aria-label="${t("Bis wann")}">
+        <button data-gdated="1" aria-pressed="${dated}">${t("Bis zu einem Datum")}</button>
+        <button data-gdated="0" aria-pressed="${!dated}">${t("Feste Monatsrate")}</button>
+      </div>
+      <label class="field" id="g-month-f" ${dated ? "" : "hidden"}><span>${t("Bis wann (Monat)")}</span><input type="month" id="g-month" value="${esc(g.target_month || addMonths(thisMonth, 6))}" min="${thisMonth}"></label>
+      <label class="field" id="g-rate-f" ${dated ? "hidden" : ""}><span>${t("Rate pro Monat in €")}</span><input type="text" id="g-rate" inputmode="decimal" value="${euroInput(g.monthly_cents)}" placeholder="${decimal(200, 2)}"></label>
+      <label class="field"><span>${t("Schon vorhanden in €")}</span><input type="text" id="g-start" inputmode="decimal" value="${euroInput(g.start_cents || 0)}">
+        <small class="hint">${t("Was schon auf dem Konto liegt und fürs Ziel zählen soll.")}</small></label>
+      ${goal ? "" : `<div class="seg" role="group" aria-label="${t("Ab wann")}">
+        <button data-gnext="0" aria-pressed="true">${t("Ab diesem Monat")}</button>
+        <button data-gnext="1" aria-pressed="false">${t("Ab nächstem Monat")}</button>
+      </div>`}
+      <button class="btn block" id="g-save">${goal ? t("Speichern") : t("Anlegen")}</button>
+      ${goal ? `<div class="btn-row"><button class="btn secondary" id="g-archive">${t("Archivieren")}</button><button class="btn secondary danger-text" id="g-delete">${t("Löschen")}</button></div>` : ""}
+    `);
+    sheet.addEventListener("click", async (e) => {
+      const ib = e.target.closest("[data-icon]");
+      if (ib) { chosenIcon = ib.dataset.icon; sheet.querySelectorAll("[data-icon]").forEach((b) => b.setAttribute("aria-pressed", b === ib)); return; }
+      const db = e.target.closest("[data-gdated]");
+      if (db) {
+        dated = db.dataset.gdated === "1";
+        sheet.querySelectorAll("[data-gdated]").forEach((b) => b.setAttribute("aria-pressed", b === db));
+        $("#g-month-f", sheet).hidden = !dated; $("#g-rate-f", sheet).hidden = dated;
+        return;
+      }
+      const nb = e.target.closest("[data-gnext]");
+      if (nb) { startNext = nb.dataset.gnext === "1"; sheet.querySelectorAll("[data-gnext]").forEach((b) => b.setAttribute("aria-pressed", b === nb)); return; }
+      if (e.target.closest("#g-archive")) {
+        try { await API.updateGoal(goal.id, { archived: true }); closeSheet(); toast(t("Sparziel archiviert")); await reload(); } catch (err) { toast(err.message); }
+        return;
+      }
+      if (e.target.closest("#g-delete")) {
+        return confirmSheet(t("Sparziel löschen?"), t("Das Ziel verschwindet. Deine Umsätze bleiben, wie sie sind."), t("Löschen"), async () => {
+          try { await API.deleteGoal(goal.id); toast(t("Sparziel gelöscht")); await reload(); } catch (err) { toast(err.message); }
+        });
+      }
+      if (!e.target.closest("#g-save")) return;
+      const name = $("#g-name", sheet).value.trim();
+      const target = parseEuro($("#g-target", sheet).value);
+      const month = $("#g-month", sheet).value;
+      const rate = parseEuro($("#g-rate", sheet).value);
+      const start = parseEuro($("#g-start", sheet).value) || 0;
+      if (!name) return $("#g-name", sheet).focus();
+      if (!target || target <= 0) { toast(t("Bitte einen Zielbetrag eingeben.")); return $("#g-target", sheet).focus(); }
+      if (dated && !/^\d{4}-\d{2}$/.test(month)) { toast(t("Bitte einen Monat wählen.")); return $("#g-month", sheet).focus(); }
+      if (!dated && (!rate || rate <= 0)) { toast(t("Bitte eine Monatsrate eingeben.")); return $("#g-rate", sheet).focus(); }
+      const data = { name, icon: chosenIcon, target_cents: target, start_cents: Math.max(0, start) };
+      if (dated) data.target_month = month; else { data.monthly_cents = rate; if (goal) data.clear_target_month = true; }
+      try {
+        if (goal) await API.updateGoal(goal.id, data);
+        else await API.createGoal({ ...data, start_month: startNext ? addMonths(thisMonth, 1) : thisMonth });
+        closeSheet();
+        toast(goal ? t("Sparziel gespeichert") : t("Sparziel „{name}“ angelegt", { name }));
+        await reload();
+      } catch (err) { toast(err.message); }
+    });
+  }
+
   function savingsCard() {
     const s = A.savingsOverview(state.ctx);
     if (!s.pots.length && !s.checks.length) {
@@ -917,7 +1072,7 @@
         <h2 style="margin-top:12px">${t("Dein Vermögen auf einen Blick")}</h2>
         <p class="note">${t("Lege Girokonto, Sparkonten, Depots und Kredite an. Was die Bank liefert, kommt automatisch. Depotwerte trägst du ab und zu selbst ein, Kredite rechnet die App mit dem Tilgungsplan weiter.")}</p>
         <button class="btn block" data-action="newaccount" style="margin-top:14px">${icon("plus")} ${t("Erstes Konto anlegen")}</button>
-      </section>${savingsCard()}`;
+      </section>${goalsCard()}${savingsCard()}`;
     }
     const s = w.series.filter((p) => p.assets || p.debts);
     const first = s[0];
@@ -947,7 +1102,7 @@
         endLabel: { point: pts.at(-1), cls: "s-main", aria: `${t("Nettovermögen")} ${fmt(w.net)}` },
       }) : ""}
     </section>`;
-    html += savingsCard();
+    html += goalsCard() + savingsCard();
 
     for (const g of w.groups) {
       html += `<section class="card acc-group">
@@ -1803,6 +1958,8 @@
     if (sc) return openCategoryList(sc.dataset.statcat, sc.dataset.scope);
     const pot = e.target.closest("[data-savpot]");
     if (pot) return openSavingsPot(Number(pot.dataset.savpot));
+    const gb = e.target.closest("[data-goal]");
+    if (gb) { const g = state.goals.find((x) => String(x.id) === gb.dataset.goal); if (g) openGoalSheet(g); return; }
     const sf = e.target.closest("[data-statfix]");
     if (sf) return openFixedList(sf.dataset.statfix);
 
@@ -1854,6 +2011,7 @@
     const accBtn = e.target.closest("[data-account]");
     if (accBtn) { const a = state.accounts.find((x) => x.id === Number(accBtn.dataset.account)); if (a) openAccountSheet(a); return; }
     if (act === "newaccount") return openNewAccountSheet();
+    if (act === "newgoal") return openGoalSheet();
 
     const sk = e.target.closest("[data-skind]");
     if (sk) { state.settingsKind = sk.dataset.skind; return render(); }

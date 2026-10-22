@@ -8,7 +8,7 @@
   --accent: #5856d6;
   --accent-fill: #5856d6;   /* Fläche gefüllter Knöpfe (weiße Schrift ≥ 4,5:1) */
   --accent-soft: rgba(88, 86, 214, 0.12);
-  --income: #167a3a;   /* Einnahmen als Text: ≥ 4,5:1 auf Weiß */
+  --income: #157537;   /* Einnahmen als Text: ≥ 4,5:1 auf Weiß und auf Grau */
   --warn: #9a5b00;
   --badge: #d70015;
   --warn-soft: rgba(255, 159, 10, 0.14);
@@ -781,3 +781,36 @@ button.hm:active { transform: scale(0.94); }
 .hy-wd b { display: block; font-size: 14px; color: var(--text); font-variant-numeric: tabular-nums; }
 .hy-bar { height: 44px; display: flex; align-items: flex-end; justify-content: center; margin-bottom: 4px; }
 .hy-bar i { display: block; width: 60%; min-height: 2px; background: var(--accent); border-radius: 4px 4px 0 0; }
+
+/* ---------- Sparziele (1.8.0) ---------- */
+
+.goal { padding: 2px 0 14px; }
+.goal + .goal { border-top: 1px solid var(--line); padding-top: 14px; }
+.goal-head { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; text-align: left; border-radius: 12px; }
+.goal-head:active { opacity: 0.7; }
+.goal-head .grow { flex: 1; min-width: 0; }
+.goal-sum { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pbar { position: relative; height: 10px; border-radius: 5px; background: var(--surface-2); margin: 12px 0 6px; overflow: hidden; }
+.pbar i { display: block; height: 100%; border-radius: 5px; background: var(--income); }
+.pbar u { position: absolute; top: 0; height: 100%; background: color-mix(in srgb, var(--income) 40%, transparent); }
+.pbar b { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text); opacity: 0.7; }
+.goal-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--muted); }
+.goal-st { font-weight: 600; white-space: nowrap; color: var(--muted); }
+.goal-st.ok { color: var(--income); }
+.goal-st.tight, .goal-st.late { color: var(--warn); }
+.goal-box { background: var(--surface-2); border-radius: 12px; padding: 8px 12px; margin-top: 10px; font-size: 14px; }
+.goal-box .line-row { font-weight: 400; padding: 4px 0; }
+.goal-box .line-row > span:last-child { text-align: right; }
+.goal-months { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+.goal-months > div { background: var(--surface-2); border-radius: 10px; padding: 6px 8px; font-size: 12px; color: var(--muted); min-width: 0; }
+.goal-months b { display: block; font-size: 14px; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.goal-months b.pos { color: var(--income); }
+.goal-months b.neg { color: var(--danger); }
+.goals .setup-hint { margin-bottom: 12px; }
+.goals > .btn { margin-top: 4px; }
+/* hidden muss auch gegen display-Regeln wie .field gewinnen */
+[hidden] { display: none !important; }
+.field input[type="month"] {
+  width: 100%; min-height: 46px; padding: 11px 12px; border-radius: 12px; -webkit-appearance: none; appearance: none;
+  border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; font-size: 16px;
+}

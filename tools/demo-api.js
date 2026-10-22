@@ -14,6 +14,11 @@ window.API = (() => {
   const matchKey = (x) => (/^[a-z]{2}\d{2}[a-z0-9]{11,}$/i.test(ibanKey(x)) ? ibanKey(x) : norm(x));
   const txs = [];
   const today = new Date();
+  // Ein Beispiel-Sparziel: vor zwei Monaten angelegt, fällig in sieben Monaten
+  const monthOf = (d, add) => { const x = new Date(d.getFullYear(), d.getMonth() + add, 15); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}`; };
+  let nextGoal = 2;
+  const goals = [{ id: 1, name: I18N.t("Urlaub"), icon: "plane", target_cents: 240000, target_month: monthOf(today, 7),
+    monthly_cents: null, start_month: monthOf(today, -2), start_cents: 0, archived: false }];
   const validUntil = new Date(today.getTime() + 90 * 86400000).toISOString().slice(0, 10);
   const bank = { provider: "demo", valid_until: validUntil, last_sync: new Date().toISOString() };
 
@@ -118,6 +123,17 @@ window.API = (() => {
       return ok({ ok: true });
     },
     deleteAccountValue: (id, vid) => { const a = accounts.find((x) => x.id === id); a.values = a.values.filter((v) => v.id !== vid); return ok(null); },
+    goals: () => ok(goals.map((g) => ({ ...g }))),
+    createGoal: (d) => { const g = { monthly_cents: null, target_month: null, start_cents: 0, icon: "piggy", ...d, id: nextGoal++, archived: false }; goals.push(g); return ok({ ...g }); },
+    updateGoal: (id, d) => {
+      const g = goals.find((x) => x.id === id);
+      const { clear_target_month: clear, ...rest } = d;
+      Object.assign(g, rest);
+      if (clear) g.target_month = null;
+      if (g.target_month) g.monthly_cents = null;
+      return ok({ ...g });
+    },
+    deleteGoal: (id) => { goals.splice(goals.findIndex((x) => x.id === id), 1); return ok(null); },
     bankStatus: () => {
       const days = Math.round((new Date(bank.valid_until + "T12:00:00") - today) / 86400000);
       return ok({ state: days <= 7 ? "expiring" : "active", days_left: days, valid_until: bank.valid_until, last_sync: bank.last_sync, provider: "demo" });
