@@ -121,40 +121,50 @@ Then open http://localhost:8000 and connect the demo bank under *Settings*.
 
 ## Installation
 
-You need a small always-on Linux machine (a Raspberry Pi 4 is plenty),
-[Docker](https://docs.docker.com/engine/install/) and
-[Tailscale](https://tailscale.com) on the server and on your phone.
+You need a small always-on Linux machine (a Raspberry Pi 4 with Raspberry Pi OS 64-bit is
+plenty), a free [Tailscale](https://tailscale.com) account and the Tailscale app on your phone.
+
+**One command** – over SSH on the Pi, as a normal user:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Vaitage/muenzwerk/main/install.sh | bash
+```
+
+It installs Docker and Tailscale, fetches Münzwerk into `~/muenzwerk`, starts it and makes it
+reachable via HTTPS inside your tailnet only (`tailscale serve`, never `funnel`). It asks for
+your sudo password once and shows a link to sign the machine in to Tailscale. At the end you
+get a **QR code**: scan it with your phone, create a passkey (the setup code is already filled
+in), add the page to your home screen – the app explains the rest. Running it again is safe.
+
+If `tailscale serve` complains, enable "MagicDNS" and "HTTPS Certificates" under *DNS* in the
+Tailscale admin console and run the command again.
+
+<details><summary>Manual install instead</summary>
 
 ```bash
 git clone https://github.com/Vaitage/muenzwerk.git
 cd muenzwerk
-cp .env.example .env            # then edit it, see below
+cp .env.example .env            # set PUBLIC_URL and ALLOWED_HOSTS, see below
 docker compose up -d --build
-```
-
-The container only listens on `127.0.0.1:8000`. Make it reachable for your own
-devices with HTTPS through Tailscale:
-
-```bash
 sudo tailscale serve --bg 8000
+docker exec haushaltsbuch python -m app.auth link   # address with setup code
 ```
-
-Never use `tailscale funnel` – that would put your finances on the public internet.
-Open the `https://<machine>.<your-tailnet>.ts.net` address on your phone, set up
-a passkey and add the page to your home screen. Setting up the first passkey asks for a
-**setup code**; it is printed in the app's log (`docker logs haushaltsbuch`) or shown with
-`docker exec haushaltsbuch python -m app.auth code`.
+</details>
 
 ### Connecting your bank (Enable Banking)
 
-1. Create an account at [Enable Banking](https://enablebanking.com) and, in the
-   control panel, an application with the environment *Production*. Linking your
-   own accounts in the free *restricted* mode is enough for personal use.
-2. Enter `https://<your-address>/api/bank/callback` as redirect URL.
-3. Put the downloaded private key into `data/enablebanking.pem`.
-4. In `.env`: `BANK_PROVIDER=enablebanking`, `ENABLEBANKING_APP_ID=…`, `PUBLIC_URL=…`,
-   and your bank's name and country as listed by Enable Banking.
-5. Restart (`docker compose up -d`), tap *Connect* under *Settings* and confirm with your bank.
+In the app, **Settings → Set up bank** opens a wizard that walks you through it:
+
+1. Create a free account at [Enable Banking](https://enablebanking.com) and an application
+   ("Production") – the wizard shows the redirect URL to copy. For your own accounts the free
+   restricted mode is enough ("Restricted", link your account).
+2. Enter the app ID and choose the downloaded `.pem` file. Münzwerk stores the key only on your
+   server and checks right away with Enable Banking that app ID, key and redirect URL match.
+3. Pick your bank from the list, connect and confirm at your bank.
+
+No terminal, no restart. If you prefer `.env`: `BANK_PROVIDER=enablebanking`,
+`ENABLEBANKING_APP_ID`, `ENABLEBANKING_KEY_FILE`, `ENABLEBANKING_BANK`, `ENABLEBANKING_COUNTRY`
+still work; values from the wizard take precedence.
 
 Access is read-only: Münzwerk can read transactions and balances but cannot move money,
 and neither Münzwerk nor Enable Banking ever see your online banking password.

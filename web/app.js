@@ -5,7 +5,7 @@
 
 // Version dieser App-Dateien (gleich wie __version__ in app/__init__.py). Weicht die
 // Version des Servers ab, zeigt das Handy noch eine zwischengespeicherte Fassung.
-const APP_VERSION = "1.13.0";
+const APP_VERSION = "1.14.0";
 const A = window.Analytics;
 const { t, tn, ord, locale } = window.I18N;
 
@@ -440,7 +440,7 @@ function noticeHtml(ic, title, text, action, cls = "") {
 
 function bankNotices() {
   const b = state.bank;
-  if (b.state === "none" && b.setup) return noticeHtml("bank", t("Bank noch nicht eingerichtet"), t("Tippe hier für die nächsten Schritte."), "goto-settings", "warn");
+  if (b.state === "none" && b.setup) return noticeHtml("bank", t("Bank noch nicht eingerichtet"), t("Tippe hier – ein Assistent führt dich durch."), "setup", "warn");
   if (b.state === "none") return noticeHtml("bank", t("Bank noch nicht verbunden"), t("Tippe hier, um dein Konto zu verknüpfen."), "goto-settings", "warn");
   if (b.state === "expired") return noticeHtml("bank", t("Bankfreigabe abgelaufen"), t("Einmal bei der Bank bestätigen, dann geht's weiter."), "connect", "warn");
   const problem = syncProblem(b);

@@ -122,44 +122,53 @@ Dann http://localhost:8000 öffnen und unter „Einstellungen“ die Demo-Bank v
 
 ## Installation
 
-Du brauchst einen kleinen Linux-Rechner, der durchläuft (ein Raspberry Pi 4 reicht),
-[Docker](https://docs.docker.com/engine/install/) und [Tailscale](https://tailscale.com)
-auf dem Server und dem Handy.
+Du brauchst einen kleinen Linux-Rechner, der durchläuft (ein Raspberry Pi 4 reicht, mit
+Raspberry Pi OS 64 Bit), ein kostenloses [Tailscale](https://tailscale.com)-Konto und die
+Tailscale-App auf dem Handy.
+
+**Ein Befehl** – per SSH auf dem Pi als normaler Benutzer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Vaitage/muenzwerk/main/install.sh | bash
+```
+
+Das installiert Docker und Tailscale, holt Münzwerk nach `~/muenzwerk`, startet es und macht es
+per HTTPS nur in deinem Tailnet erreichbar (`tailscale serve`, niemals `funnel`). Unterwegs
+fragt es einmal das sudo-Passwort und zeigt einen Link zur Tailscale-Anmeldung. Am Ende steht
+ein **QR-Code**: mit dem Handy scannen, Passkey anlegen (der Einrichtungscode ist schon
+eingetragen), Seite zum Homescreen hinzufügen – den Rest erklärt die App. Mehrfach
+ausführen schadet nicht.
+
+Falls `tailscale serve` meckert: im Tailscale-Adminbereich unter *DNS* „MagicDNS“ und
+„HTTPS Certificates“ einschalten und den Befehl nochmal starten.
+
+<details><summary>Von Hand statt mit dem Befehl</summary>
 
 ```bash
 git clone https://github.com/Vaitage/muenzwerk.git
 cd muenzwerk
-cp .env.example .env            # anpassen, siehe unten
+cp .env.example .env            # PUBLIC_URL und ALLOWED_HOSTS anpassen, siehe unten
 docker compose up -d --build
-```
-
-Der Container lauscht nur auf `127.0.0.1:8000`. Für die eigenen Geräte per HTTPS
-über Tailscale freigeben:
-
-```bash
 sudo tailscale serve --bg 8000
+docker exec haushaltsbuch python -m app.auth link   # Adresse mit Einrichtungscode
 ```
-
-Niemals `tailscale funnel` verwenden – damit stünden deine Finanzen öffentlich im Internet.
-Die Adresse `https://<rechner>.<dein-tailnet>.ts.net` auf dem Handy öffnen, Passkey
-einrichten und die Seite zum Homescreen hinzufügen. Für den ersten Passkey fragt die App
-nach einem **Einrichtungscode**; er steht im Log der App (`docker logs haushaltsbuch`) oder
-lässt sich mit `docker exec haushaltsbuch python -m app.auth code` anzeigen.
-
-Für den Raspberry Pi liegen unter `tools/pi/` Skripte, die die Einrichtung vom
-Windows-PC aus per SSH erledigen (Docker, Tailscale, App).
+</details>
 
 ### Bank verbinden (Enable Banking)
 
-1. Konto bei [Enable Banking](https://enablebanking.com) anlegen und im Control Panel
-   eine App mit der Umgebung „Production“ erstellen. Für die eigenen Konten reicht der
-   kostenlose eingeschränkte Modus.
-2. Als Redirect-URL `https://<deine-adresse>/api/bank/callback` eintragen.
-3. Den heruntergeladenen privaten Schlüssel nach `data/enablebanking.pem` legen.
-4. In `.env`: `BANK_PROVIDER=enablebanking`, `ENABLEBANKING_APP_ID=…`, `PUBLIC_URL=…`
-   sowie Name und Land deiner Bank, wie Enable Banking sie führt.
-5. Neu starten (`docker compose up -d`), unter „Einstellungen“ auf „Verbinden“ tippen und bei
-   der Bank bestätigen.
+In der App unter **„Einstellungen → Bank einrichten“** führt ein Assistent durch alles:
+
+1. Kostenloses Konto bei [Enable Banking](https://enablebanking.com) und dort eine App
+   („Production“) anlegen – die Redirect-URL zeigt der Assistent zum Kopieren an. Für die
+   eigenen Konten reicht der kostenlose eingeschränkte Modus („Restricted“, Konto verknüpfen).
+2. App-ID eintragen und die heruntergeladene `.pem`-Datei auswählen. Münzwerk speichert den
+   Schlüssel nur auf deinem Server und prüft sofort bei Enable Banking, ob App-ID, Schlüssel
+   und Redirect-URL zusammenpassen.
+3. Bank aus der Liste wählen, verbinden und bei der Bank bestätigen.
+
+Kein Terminal, kein Neustart. Wer lieber die `.env` nutzt: `BANK_PROVIDER=enablebanking`,
+`ENABLEBANKING_APP_ID`, `ENABLEBANKING_KEY_FILE`, `ENABLEBANKING_BANK`, `ENABLEBANKING_COUNTRY`
+gelten weiter; Angaben aus dem Assistenten haben Vorrang.
 
 Der Zugriff ist nur lesend: Münzwerk kann Umsätze und Kontostände lesen, aber kein Geld
 bewegen. Dein Online-Banking-Passwort sehen weder Münzwerk noch Enable Banking.

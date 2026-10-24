@@ -415,22 +415,31 @@ def logout_others(request: Request, conn=Depends(get_db)):
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    if sys.argv[1:] not in (["zuruecksetzen"], ["code"]):
+    if sys.argv[1:] not in (["zuruecksetzen"], ["code"], ["link"]):
         print("Aufruf: python -m app.auth zuruecksetzen   (alle Passkeys löschen)\n"
-              "        python -m app.auth code            (Einrichtungscode anzeigen)")
+              "        python -m app.auth code            (Einrichtungscode anzeigen)\n"
+              "        python -m app.auth link            (Adresse zum ersten Anmelden, mit Code – z. B. für einen QR-Code)")
         sys.exit(2)
+    # Erst nach dem Block ausgeben: sys.exit() innerhalb der Sitzung würde einen neu
+    # erzeugten Code nicht speichern (die Sitzung schreibt nur bei normalem Ende).
     with db.session() as conn:
         db.init(conn)
-        if sys.argv[1] == "code":
-            if passkey_count(conn):
-                print("Es ist schon ein Passkey eingerichtet, ein Einrichtungscode wird nicht gebraucht.")
-            else:
-                print(f"Einrichtungscode: {setup_code(conn)}")
-            sys.exit(0)
-        n = passkey_count(conn)
-        conn.execute("DELETE FROM passkeys")
-        conn.execute("DELETE FROM auth_sessions")
-        conn.execute("DELETE FROM settings WHERE key = 'setup_code'")
-        code = setup_code(conn)
+        has_passkey = passkey_count(conn) > 0
+        if sys.argv[1] == "link":
+            base = os.environ.get("PUBLIC_URL", "").rstrip("/") or "http://localhost:8000"
+            out = base + "/" if has_passkey else f"{base}/?code={setup_code(conn)}"
+        elif sys.argv[1] == "code":
+            out = ("Es ist schon ein Passkey eingerichtet, ein Einrichtungscode wird nicht gebraucht."
+                   if has_passkey else f"Einrichtungscode: {setup_code(conn)}")
+        else:
+            n = passkey_count(conn)
+            conn.execute("DELETE FROM passkeys")
+            conn.execute("DELETE FROM auth_sessions")
+            conn.execute("DELETE FROM settings WHERE key = 'setup_code'")
+            code = setup_code(conn)
+            out = None
+    if out is not None:
+        print(out)
+        sys.exit(0)
     print(f"{n} Passkey(s) und alle Sitzungen gelöscht. Neuen Passkey in der App einrichten, "
           f"Einrichtungscode: {code}")

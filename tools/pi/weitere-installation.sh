@@ -26,6 +26,7 @@ chmod 700 "$ZIEL/data"
 if [ ! -f "$ZIEL/.env" ]; then
   sed -e "s|^PUBLIC_URL=.*|PUBLIC_URL=https://$TS_NAME:$HTTPS_PORT|" \
       -e "s|^ALLOWED_HOSTS=.*|ALLOWED_HOSTS=localhost,127.0.0.1,$TS_NAME|" \
+      -e "s|^BANK_PROVIDER=.*|BANK_PROVIDER=none|" \
       "$HAUPT/.env.example" > "$ZIEL/.env"
   printf '\n# Weitere Installation auf diesem Pi\nCONTAINER_NAME=haushaltsbuch-%s\nPORT=%s\n' "$NAME" "$PORT" >> "$ZIEL/.env"
   chmod 600 "$ZIEL/.env"
@@ -41,5 +42,7 @@ for i in $(seq 1 30); do
   curl -fs -o /dev/null "http://127.0.0.1:$PORT/" && break
   sleep 2
 done
-echo "Fertig: https://$TS_NAME:$HTTPS_PORT"
-docker exec "haushaltsbuch-$NAME" python -m app.auth code || true
+LINK="$(docker exec "haushaltsbuch-$NAME" python -m app.auth link 2>/dev/null || echo "https://$TS_NAME:$HTTPS_PORT/")"
+echo "Fertig. Mit dem Handy scannen (Tailscale an), Passkey anlegen, dann führt die App durch die Bank-Einrichtung:"
+command -v qrencode >/dev/null && qrencode -t ansiutf8 -m 2 "$LINK"
+echo "  $LINK"

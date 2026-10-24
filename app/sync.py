@@ -8,7 +8,7 @@ import threading
 from datetime import date, datetime, timedelta
 
 from . import accounts, ledger
-from .bank import BankProvider, ConsentExpired, setup_problem
+from .bank import BankProvider, ConsentExpired, bank_config, setup_problem
 
 log = logging.getLogger("haushaltsbuch")
 
@@ -27,7 +27,7 @@ def status(conn: sqlite3.Connection) -> dict:
     if row is None:
         return {"state": "none", "days_left": None, "valid_until": None, "last_sync": None, "provider": None,
                 # Grund, warum "Verbinden" noch nicht gehen kann (None = bereit)
-                "setup": setup_problem()}
+                "setup": setup_problem(conn)}
     days_left = None
     state = row["status"]
     if row["valid_until"]:
@@ -44,8 +44,8 @@ def status(conn: sqlite3.Connection) -> dict:
         "last_error": row["last_error"],
         "provider": row["provider"],
         # Anzeigename der Bank in den Einstellungen
-        "bank_name": os.environ.get("ENABLEBANKING_BANK", "") if row["provider"] == "enablebanking" else "",
-        "setup": setup_problem(),
+        "bank_name": bank_config(conn)["bank"] if row["provider"] == "enablebanking" else "",
+        "setup": setup_problem(conn),
         "last_fetch": _last_fetch(conn),
     }
 

@@ -6,6 +6,7 @@ window.API = (() => {
   // Standardkategorien in der Sprache der Oberfläche (die Demo-Datenbank ist deutsch)
   const cats = D.categories.map((c) => ({ ...c, name: I18N.t(c.name) }));
   const rules = D.rules.map((r) => ({ ...r }));
+  const setup = { appId: "", bank: "ING", country: "DE" };
   const settings = { shift_from_day: 15, large_expense_cents: 25000, review_days: 3, dismissed_hints: [] };
   const overrides = new Map();
   let nextAcc = 100, nextVal = 1000;
@@ -145,6 +146,16 @@ window.API = (() => {
       return ok({ state: days <= 7 ? "expiring" : "active", days_left: days, valid_until: bank.valid_until, last_sync: bank.last_sync, provider: "demo" });
     },
     bankConnect: () => { bank.valid_until = validUntil; return ok({ url: null }); },
+    // Einrichtungs-Assistent: nur vorgespielt, Enable Banking wird nicht gefragt
+    setupStatus: () => ok({ provider: setup.appId ? "enablebanking" : "none", problem: setup.appId ? null : "no_provider",
+      redirect_url: "https://muenzwerk.beispiel.ts.net/api/bank/callback", public_url_ok: true, app_id: setup.appId,
+      key_present: !!setup.appId, bank: setup.bank, country: setup.country, connected: true }),
+    setupSave: (d) => { setup.appId = d.app_id; return ok({ ok: true, name: "Münzwerk", environment: "PRODUCTION", active: true, redirect_ok: true, redirect_url: "https://muenzwerk.beispiel.ts.net/api/bank/callback" }); },
+    setupTest: () => ok({ ok: true, name: "Münzwerk", environment: "PRODUCTION", active: true, redirect_ok: true, redirect_url: "https://muenzwerk.beispiel.ts.net/api/bank/callback" }),
+    setupBanks: (country) => ok(country === "DE"
+      ? ["1822direkt", "Commerzbank", "comdirect", "Consorsbank", "DKB", "Deutsche Bank", "ING", "N26", "Postbank", "Sparkasse Musterstadt", "Volksbank Musterland"].map((name) => ({ name, country }))
+      : [{ name: "Musterbank", country }]),
+    setupBank: (d) => { setup.bank = d.bank; setup.country = d.country; return ok(d); },
     bankSync: () => new Promise((res) => setTimeout(() => {   // simulierte Wartezeit wie bei der Bank
       bank.last_sync = new Date().toISOString();
       res({ ok: true, new: 0, categorized: 0, uncategorized: 0, confirmed: 0, new_pending: 0, pending: txs.filter((t) => t.pending).length });

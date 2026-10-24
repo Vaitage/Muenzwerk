@@ -47,6 +47,7 @@ document.addEventListener("click", async (e) => {
     state.view = "stats"; state.statsPeriod = "month"; state.statsMonth = state.month;
     window.scrollTo(0, 0); return render();
   }
+  if (act === "setup") return openSetupWizard();
   if (act === "goto-review") {
     state.view = "stats"; state.statsPeriod = "month"; state.statsMonth = e.target.closest("[data-review-month]").dataset.reviewMonth;
     window.scrollTo(0, 0); return render();

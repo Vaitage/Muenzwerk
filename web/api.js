@@ -60,6 +60,12 @@ window.API = (() => {
     updates: () => req("GET", "/api/updates").catch((e) => (e.status === 404 ? null : { error: e.message })),
     version: () => req("GET", "/api/version").catch((e) => { console.warn("Version nicht abrufbar:", e.message); return null; }),
     updateAction: (aktion) => req("POST", "/api/updates", { aktion }),
+    // Einrichtungs-Assistent für die Bank (app/setup.py)
+    setupStatus: () => req("GET", "/api/setup"),
+    setupSave: (data) => req("POST", "/api/setup/enablebanking", data),
+    setupTest: () => req("POST", "/api/setup/test"),
+    setupBanks: (country) => req("GET", `/api/setup/banks${q({ country })}`),
+    setupBank: (data) => req("PUT", "/api/setup/bank", data),
     // Mitteilungen (app/push.py)
     pushStatus: () => req("GET", "/api/push"),
     pushSubscribe: (sub) => req("POST", "/api/push/subscribe", sub),

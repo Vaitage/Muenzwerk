@@ -67,7 +67,9 @@ function viewSettings() {
         ${fetchInfoHtml(bank)}</div>
       </div>
       ${bank.state === "none" ? `<div class="btn-row">
-        <button class="btn" data-action="connect" ${bank.setup ? "disabled" : ""}>${t("Verbinden")}</button>
+        ${bank.setup
+          ? `<button class="btn" data-action="setup">${t("Bank einrichten")}</button>`
+          : `<button class="btn" data-action="connect">${t("Verbinden")}</button>`}
       </div>` : ["expired", "expiring"].includes(bank.state) ? `<div class="btn-row">
         <button class="btn secondary" data-action="sync">${icon("refresh")} ${t("Jetzt abrufen")}</button>
         <button class="btn" data-action="connect" ${bank.setup ? "disabled" : ""}>${t("Neu verbinden")}</button>
@@ -75,7 +77,7 @@ function viewSettings() {
         <button class="btn" data-action="sync">${icon("refresh")} ${t("Jetzt abrufen")}</button>
       </div>
       <button class="btn-text" data-action="connect" ${bank.setup ? "disabled" : ""}>${t("Neu verbinden")}</button>`}
-      ${bank.setup ? setupHint(bank.setup) : ""}
+      ${bank.setup ? `<p class="note">${t("Ein Assistent führt dich Schritt für Schritt durch die Einrichtung – ohne Terminal.")}</p>` : `<button class="btn-text" data-action="setup">${bank.provider === "demo" ? t("Echte Bank einrichten") : t("Bankanbindung ändern")}</button>`}
     </section>
     ${aboutCard()}
 
@@ -333,20 +335,6 @@ function fetchInfoHtml(bank) {
 }
 
 // Was fehlt, damit "Verbinden" geht (Server: bank.setup_problem)
-const SETUP_HINTS = {
-  no_provider: t("Für diese Installation ist noch keine Bankanbindung eingerichtet. Wer Münzwerk betreibt, legt dafür eine eigene App bei Enable Banking an und trägt sie in der .env ein (BANK_PROVIDER=enablebanking). Danach den Container neu starten."),
-  missing_app_id: t("In der .env fehlt ENABLEBANKING_APP_ID, die ID deiner App bei Enable Banking. Danach den Container neu starten."),
-  missing_key: t("Der private Schlüssel von Enable Banking fehlt. Die .pem-Datei gehört nach data/enablebanking.pem (ENABLEBANKING_KEY_FILE in der .env). Danach den Container neu starten."),
-};
-function setupHint(reason) {
-  const guide = window.I18N.lang === "de"
-    ? "https://github.com/Vaitage/muenzwerk/blob/main/README.de.md#bank-verbinden-enable-banking"
-    : "https://github.com/Vaitage/muenzwerk#connecting-your-bank-enable-banking";
-  return `<div class="setup-hint">${icon("bank")}<div><b>${t("Bank noch nicht eingerichtet")}</b>
-    <span>${SETUP_HINTS[reason] || SETUP_HINTS.no_provider}</span>
-    <a href="${guide}" target="_blank" rel="noopener">${t("Anleitung öffnen")}</a></div></div>`;
-}
-
 function ruleRow(r) {
   return `<div class="row"><div class="grow"><div>${t("„{name}“", { name: esc(r.pattern) })}</div><div class="hint">→ ${esc(r.category)}</div></div>
     <button class="small-del" data-delrule="${r.id}" aria-label="${t("Regel löschen")}">${icon("trash")}</button></div>`;

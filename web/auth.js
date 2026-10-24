@@ -2,6 +2,14 @@
 // lädt diese Datei nicht; app.js kommt dann ohne Anmeldung aus.
 window.Auth = (() => {
   "use strict";
+  // Einrichtungscode aus dem Link bzw. QR-Code der Installation (…/?code=ABCD-EFGH) übernehmen
+  // und gleich aus der Adresszeile entfernen
+  const params = new URLSearchParams(location.search);
+  const linkCode = (params.get("code") || "").replace(/[^A-Za-z0-9-]/g, "").slice(0, 12);
+  if (params.has("code")) {
+    params.delete("code");
+    history.replaceState(null, "", location.pathname + (params.toString() ? `?${params}` : "") + location.hash);
+  }
   const $ = (sel) => document.querySelector(sel);
   const { t, tn, locale } = window.I18N;
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -90,8 +98,8 @@ window.Auth = (() => {
         ${first ? `
         <label class="field lock-code"><span>${t("Einrichtungscode")}</span>
           <input type="text" id="auth-code" inputmode="text" autocapitalize="characters" autocomplete="one-time-code"
-            spellcheck="false" maxlength="12" placeholder="ABCD-EFGH"></label>
-        <p class="lock-hint">${t("Steht im Log der App auf dem Server: docker logs haushaltsbuch")}</p>` : ""}
+            spellcheck="false" maxlength="12" placeholder="ABCD-EFGH" value="${esc(linkCode)}"></label>
+        <p class="lock-hint">${linkCode ? t("Code aus dem QR-Code übernommen.") : t("Zeigt die Installation am Ende an (auch als QR-Code). Später: docker exec haushaltsbuch python -m app.auth code")}</p>` : ""}
         <button class="btn block" id="auth-go">${first ? t("Passkey einrichten") : t("Entsperren")}</button>
         <p class="lock-msg" id="auth-msg" role="alert">${esc(message)}</p>
       </section>`;

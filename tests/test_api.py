@@ -147,7 +147,7 @@ def test_bank_nicht_eingerichtet_wird_gemeldet(tmp_path, monkeypatch):
         monkeypatch.delenv("ENABLEBANKING_APP_ID", raising=False)
         assert client.get("/api/bank/status").json()["setup"] == "missing_app_id"
         resp = client.post("/api/bank/connect")
-        assert resp.status_code == 409 and "ENABLEBANKING_APP_ID" in resp.json()["detail"]
+        assert resp.status_code == 409 and "App-ID" in resp.json()["detail"]
         assert client.post("/api/bank/sync").json() == {"ok": False, "reason": "not_connected"}
 
         monkeypatch.setenv("ENABLEBANKING_APP_ID", "erfunden-123")

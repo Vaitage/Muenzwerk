@@ -5,8 +5,8 @@ Konten. Einrichtung (einmalig, siehe README):
 
 1. Konto bei Enable Banking anlegen, im Control Panel eine "Production"-App
    erstellen, Redirect-URL = https://<deine-adresse>/api/bank/callback
-2. Die heruntergeladene Schlüsseldatei (.pem) auf den Pi legen.
-3. In .env eintragen:
+2. App-ID und Schlüsseldatei (.pem) im Assistenten der App eintragen
+   („Einstellungen → Bank → Einrichten“). Alternativ wie früher in der .env:
        BANK_PROVIDER=enablebanking
        ENABLEBANKING_APP_ID=<Application ID>
        ENABLEBANKING_KEY_FILE=/data/enablebanking.pem
@@ -69,16 +69,28 @@ class EnableBankingProvider(BankProvider):
         self.country = country
 
     @classmethod
-    def from_env(cls) -> "EnableBankingProvider":
-        app_id = os.environ["ENABLEBANKING_APP_ID"]
-        with open(os.environ["ENABLEBANKING_KEY_FILE"], encoding="utf-8") as fh:
+    def from_config(cls, cfg: dict) -> "EnableBankingProvider":
+        """Aus app.bank.bank_config() (Assistent in der App oder .env)."""
+        with open(cfg["key_file"], encoding="utf-8") as fh:
             key = fh.read()
-        return cls(
-            app_id,
-            key,
-            bank_name=os.environ.get("ENABLEBANKING_BANK", "ING"),
-            country=os.environ.get("ENABLEBANKING_COUNTRY", "DE"),
-        )
+        return cls(cfg["app_id"], key, bank_name=cfg["bank"], country=cfg["country"])
+
+    @classmethod
+    def from_env(cls) -> "EnableBankingProvider":
+        from . import bank_config
+
+        return cls.from_config(bank_config())
+
+    # -- Einrichtung ----------------------------------------------------------
+
+    def application(self) -> dict:
+        """Angaben zur eigenen App bei Enable Banking (prüft zugleich App-ID und Schlüssel)."""
+        return self._request("GET", "/application")
+
+    def banks(self, country: str) -> list[dict]:
+        data = self._request("GET", "/aspsps", params={"country": country, "psu_type": "personal"})
+        return [{"name": a.get("name", ""), "country": a.get("country", country)}
+                for a in data.get("aspsps", []) if a.get("name")]
 
     # -- Hilfsfunktionen ----------------------------------------------------
 

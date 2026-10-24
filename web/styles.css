@@ -910,3 +910,47 @@ button.hm:active { transform: scale(0.94); }
 .review .line-row > span:first-child { flex: none; }
 .review .line-row > span:last-child { display: flex; justify-content: flex-end; gap: 4px; min-width: 0; white-space: nowrap; }
 .review .ell { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+/* ---------- Einrichtungs-Assistent (Bank) ---------- */
+.wiz h3 { margin: 6px 0 10px; }
+.wiz-progress { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 4px; }
+.wiz-progress i { height: 4px; border-radius: 2px; background: var(--surface-2); }
+.wiz-progress i.done { background: var(--accent-fill); opacity: 0.55; }
+.wiz-progress i.now { background: var(--accent-fill); }
+.wiz-count { margin-top: 6px; font-size: 12px; }
+.wiz-list { display: grid; gap: 12px; margin: 14px 0; }
+.wiz-list > div { display: flex; gap: 12px; align-items: flex-start; background: var(--surface); border-radius: 14px; padding: 12px 14px; }
+.wiz-list b { display: block; }
+.wiz-list span:not(.wiz-num) { display: block; font-size: 14px; color: var(--muted); }
+.wiz-num { flex: none; width: 28px; height: 28px; border-radius: 14px; display: grid; place-items: center;
+  background: var(--accent-fill); color: #fff; font-weight: 700; font-size: 14px; }
+.wiz-steps li { margin-bottom: 14px; }
+.wiz-steps .btn-row { margin-top: 8px; }
+.copy-row { display: flex; align-items: center; gap: 10px; background: var(--surface); border-radius: 12px; padding: 8px 8px 8px 12px; margin-top: 8px; }
+.copy-row .grow { min-width: 0; }
+.copy-row .hint { display: block; font-size: 12px; }
+.copy-row code { display: block; font-size: 13px; word-break: break-all; }
+.copy-row .btn { flex: none; }
+.wiz .field input[type="file"] { width: 100%; padding: 10px; border-radius: 12px; border: 1.5px dashed var(--muted); background: var(--surface); color: var(--text); font-size: 14px; min-height: 44px; }
+.wiz .field select { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font-size: 16px; min-height: 44px; }
+.wiz .field input[type="text"] { font-size: 16px; }
+.wiz-result { display: flex; gap: 12px; align-items: flex-start; border-radius: 14px; padding: 12px 14px; margin: 12px 0; background: var(--surface); }
+.wiz-result > .ic { flex: none; width: 22px; height: 22px; margin-top: 1px; }
+.wiz-result b { display: block; }
+.wiz-result span { display: block; font-size: 14px; color: var(--muted); }
+.wiz-result.good { box-shadow: inset 0 0 0 1.5px var(--income); }
+.wiz-result.good > .ic { color: var(--income); }
+.wiz-result.bad { box-shadow: inset 0 0 0 1.5px var(--danger); }
+.wiz-result.bad > .ic { color: var(--danger); }
+.wiz-result.warn { background: var(--warn-soft); }
+.wiz-result.warn > .ic { color: var(--warn); }
+.wiz-result .grow, .wiz-result > div { min-width: 0; flex: 1; }
+.bank-list { max-height: 46vh; overflow-y: auto; background: var(--surface); border-radius: 14px; margin-bottom: 10px; }
+.bank-list p { padding: 12px 14px; margin: 0; }
+.bank-opt { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 12px 14px; min-height: 48px; }
+.bank-opt + .bank-opt { border-top: 1px solid var(--line); }
+.bank-opt > .ic { width: 20px; height: 20px; color: var(--muted); flex: none; }
+.bank-opt span { flex: 1; }
+.bank-opt[aria-selected="true"] { background: var(--accent-soft); font-weight: 600; }
+.bank-opt[aria-selected="true"] > .ic:last-child { color: var(--accent); }
+.note.pos { color: var(--income); }

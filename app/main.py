@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, Field
 
-from . import __version__, accounts, auth, db, goals, ledger, push, sync, updates, widget
+from . import __version__, accounts, auth, db, goals, ledger, push, sync, updates, widget, setup
 from .bank import BankNotConfigured, get_provider
 
 log = logging.getLogger("haushaltsbuch")
@@ -61,7 +61,7 @@ def psu_headers(request: Request) -> dict:
 def sync_or_reason(conn, psu: dict | None = None, manual: bool = False) -> dict:
     """Abruf; ist die Bank noch nicht eingerichtet, nur der Grund statt eines Fehlers."""
     try:
-        provider = get_provider()
+        provider = get_provider(conn)
     except BankNotConfigured:
         connected = sync.get_connection(conn) is not None
         return {"ok": False, "reason": "not_configured" if connected else "not_connected"}
@@ -173,6 +173,7 @@ app.include_router(updates.router)
 app.include_router(widget.router)
 app.include_router(goals.router)
 app.include_router(push.router)
+app.include_router(setup.router)
 
 
 def get_db():
@@ -444,7 +445,7 @@ def bank_status(conn=Depends(get_db)):
 def bank_connect(request: Request, conn=Depends(get_db)):
     base = os.environ.get("PUBLIC_URL", str(request.base_url)).rstrip("/")
     try:
-        start = get_provider().start_connect(f"{base}/api/bank/callback")
+        start = get_provider(conn).start_connect(f"{base}/api/bank/callback")
     except BankNotConfigured as exc:
         raise HTTPException(409, str(exc) or "Die Bank ist noch nicht eingerichtet.") from exc
     conn.execute(
@@ -461,7 +462,7 @@ def bank_callback(code: str, state: str, conn=Depends(get_db)):
     if expected is None or expected["value"] != state:
         raise HTTPException(400, "Ungültige Rückmeldung der Bank.")
     conn.execute("DELETE FROM settings WHERE key = 'pending_state'")
-    provider = get_provider()
+    provider = get_provider(conn)
     result = provider.finish_connect(code)
     sync.save_connection(conn, provider.name, result.session_id, result.account_ids, result.valid_until, result.accounts)
     conn.commit()   # Verbindung speichern, bevor der erste Abruf wieder die Bank fragt
