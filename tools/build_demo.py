@@ -78,6 +78,10 @@ def main() -> None:
     assert block in html, "Skript-Liste in index.html passt nicht zu APP_FILES"
     html = html.replace(block, f"  <script>\n{scripts}\n  </script>")
     html = html.replace("<title>Münzwerk</title>", "<title>Münzwerk Demo</title>")
+    # Band „Demo – erfundene Daten“ unter der Kopfzeile; Text setzt demo-api.js in der Sprache des Geräts
+    html = html.replace('    <header class="top" id="top"></header>\n',
+                        '    <header class="top" id="top"></header>\n    <div class="demo-banner" id="demo-banner"></div>\n')
+    assert 'id="demo-banner"' in html, "Kopfzeile in index.html nicht gefunden"
 
     out = ROOT / "dist" / "demo.html"
     out.parent.mkdir(exist_ok=True)

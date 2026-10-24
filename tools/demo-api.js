@@ -1,5 +1,14 @@
 // Nur für die Vorschau (demo.html): bildet die Server-Schnittstelle komplett
 // im Browser nach, mit erfundenen Umsätzen. Nichts wird gespeichert.
+// Band oben in der Demo (öffentlich unter GitHub Pages): erklärt, was das ist, und verlinkt das Projekt
+document.addEventListener("DOMContentLoaded", () => {
+  const el = document.getElementById("demo-banner");
+  if (!el) return;
+  const t = window.I18N.t;
+  el.innerHTML = `<span><b>${t("Demo")}</b> · ${t("Alle Zahlen sind erfunden. Nichts wird gespeichert.")}</span>
+    <a href="https://github.com/Vaitage/muenzwerk${window.I18N.lang === "de" ? "/blob/main/README.de.md" : ""}" target="_blank" rel="noopener">${t("Selbst installieren")} ↗</a>`;
+});
+
 window.API = (() => {
   const D = window.DEMO_DATA; // vom Build-Skript eingefügt
   let nextCat = 1000, nextRule = 1000;

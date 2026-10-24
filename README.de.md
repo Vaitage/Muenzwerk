@@ -104,7 +104,11 @@ sind willkommen.
 
 ## Ausprobieren
 
-Am schnellsten geht es mit der Vorschau, die komplett im Browser mit erfundenen Daten läuft:
+**[▶ Demo im Browser öffnen](https://vaitage.github.io/Muenzwerk/)** – läuft komplett im Browser mit
+erfundenen Daten, nichts zu installieren, nichts wird gespeichert. Geht auch auf dem Handy (zum Home-Bildschirm
+hinzufügen).
+
+Die Demo selbst bauen:
 
 ```bash
 python tools/build_demo.py      # erzeugt dist/demo.html

@@ -102,8 +102,10 @@ Enable Banking may work but can deliver data slightly differently – reports ar
 
 ## Try the demo
 
-The quickest way to look around is the demo, which runs completely in the browser
-with made-up data:
+**[▶ Open the live demo](https://vaitage.github.io/Muenzwerk/)** – runs completely in the browser with
+made-up data, nothing to install, nothing is saved. Works on the phone too (add it to the home screen).
+
+To build the demo yourself:
 
 ```bash
 python tools/build_demo.py      # creates dist/demo.html

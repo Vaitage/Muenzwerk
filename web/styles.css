@@ -954,3 +954,10 @@ button.hm:active { transform: scale(0.94); }
 .bank-opt[aria-selected="true"] { background: var(--accent-soft); font-weight: 600; }
 .bank-opt[aria-selected="true"] > .ic:last-child { color: var(--accent); }
 .note.pos { color: var(--income); }
+
+/* Nur in der Demo (dist/demo.html, GitHub Pages) */
+.demo-banner:empty { display: none; }
+.demo-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  margin: 4px 16px 10px; padding: 8px 12px; border-radius: 12px; background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--accent-soft); font-size: 13px; }
+.demo-banner a { color: var(--accent); font-weight: 600; text-decoration: none; position: relative; }
+.demo-banner a::after { content: ""; position: absolute; inset: -14px -10px; }
