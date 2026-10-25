@@ -33,7 +33,8 @@ Aufnahmen aus der Vorschau mit erfundenen Beispieldaten.
 | **Statistik Jahr** | **Vermögen** | **Kredit** |
 | <img src="docs/bilder/07-statistik-jahr.png" width="240" alt="Statistik für ein Jahr mit Balken je Monat"> | <img src="docs/bilder/08-vermoegen.png" width="240" alt="Vermögensübersicht"> | <img src="docs/bilder/09-kredit.png" width="240" alt="Kredit mit Tilgungsplan"> |
 | **Fixkosten** | **Heller Modus** | |
-| <img src="docs/bilder/10-fixkosten.png" width="240" alt="Erkannte Fixkosten in den Einstellungen"> | <img src="docs/bilder/11-uebersicht-hell.png" width="240" alt="Übersicht im hellen Modus"> | |
+| <img src="docs/bilder/10-fixkosten.png" width="240" alt="Erkannte Fixkosten in den Einstellungen"> | <img src="docs/bilder/11-uebersicht-hell.png" width="240" alt="Übersicht im hellen Modus"> | <img src="docs/bilder/12-kalender.png" width="240" alt="Ausgaben-Kalender in der Statistik"> |
+| <img src="docs/bilder/13-vorschlag-wischen.png" width="240" alt="Kategorie-Vorschlag per Wischen übernehmen"> | <img src="docs/bilder/14-bank-einrichten.png" width="240" alt="Assistent zum Einrichten der Bank"> | |
 
 ## Was Münzwerk kann
 

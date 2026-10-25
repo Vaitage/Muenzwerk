@@ -21,9 +21,11 @@ OUT = ROOT / "docs" / ("bilder" if LANG == "de" else "images")
 LOCALE = "de-DE" if LANG == "de" else "en-GB"
 NAMES = {
     "de": ["01-uebersicht", "02-prognose", "03-umsaetze", "04-zuordnen", "05-suche", "06-statistik-monat",
-           "07-statistik-jahr", "08-vermoegen", "09-kredit", "10-fixkosten", "11-uebersicht-hell"],
+           "07-statistik-jahr", "08-vermoegen", "09-kredit", "10-fixkosten", "11-uebersicht-hell",
+           "12-kalender", "13-vorschlag-wischen", "14-bank-einrichten"],
     "en": ["01-overview", "02-forecast", "03-transactions", "04-categorize", "05-search", "06-stats-month",
-           "07-stats-year", "08-wealth", "09-loan", "10-fixed-costs", "11-overview-light"],
+           "07-stats-year", "08-wealth", "09-loan", "10-fixed-costs", "11-overview-light",
+           "12-calendar", "13-suggestion-swipe", "14-bank-setup"],
 }["de" if LANG == "de" else "en"]
 
 
@@ -38,6 +40,8 @@ async def main():
         page.on("pageerror", lambda e: errs.append(str(e)))
         await page.goto(DEMO)
         await page.wait_for_timeout(3200)  # Toasts abwarten
+        hide_banner = "document.getElementById('demo-banner')?.remove()"   # nur für die Bilder
+        await page.evaluate(hide_banner)
         shots = iter(NAMES)
 
         async def shot():
@@ -70,7 +74,25 @@ async def main():
         p2 = await ctx2.new_page()
         await p2.goto(DEMO)
         await p2.wait_for_timeout(3200)
+        await p2.evaluate(hide_banner)
         await p2.screenshot(path=f"{OUT}/{next(shots)}.png")
+        # Ausgaben-Kalender (Statistik → Monat)
+        await tab("stats"); await page.click("[data-period=month]"); await page.wait_for_timeout(300)
+        await page.evaluate("document.querySelector('.hm-grid').closest('.card').scrollIntoView({block:'center'})")
+        await shot()
+        # Kategorie-Vorschlag und Wischen (Umsätze → Zuordnen, eine Zeile nach links gezogen)
+        await tab("transactions"); await page.click("[data-txfilter=open]"); await page.wait_for_timeout(300)
+        await page.evaluate("""() => {
+            const row = document.querySelector('.swipe:has(.swipe-act.ok)') || document.querySelector('.swipe');
+            row.scrollIntoView({block: 'center'});
+            const n = row.querySelectorAll('.swipe-act').length;
+            row.classList.add('open');
+            row.querySelector('.tx').style.transform = `translateX(-${88 * n}px)`;
+        }""")
+        await shot()
+        # Assistent „Bank einrichten“, Schritt 2
+        await page.evaluate("openSetupWizard(2)"); await page.wait_for_timeout(700)
+        await shot()
         print(OUT, errs or "ohne Fehler")
         await b.close()
 

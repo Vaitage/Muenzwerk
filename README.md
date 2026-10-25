@@ -31,7 +31,8 @@ Taken from the demo with made-up data.
 | **Statistics (year)** | **Wealth** | **Loan** |
 | <img src="docs/images/07-stats-year.png" width="240" alt="Statistics for a year with bars per month"> | <img src="docs/images/08-wealth.png" width="240" alt="Net worth overview"> | <img src="docs/images/09-loan.png" width="240" alt="Loan with repayment plan"> |
 | **Fixed costs** | **Light mode** | |
-| <img src="docs/images/10-fixed-costs.png" width="240" alt="Detected fixed costs in the settings"> | <img src="docs/images/11-overview-light.png" width="240" alt="Overview in light mode"> | |
+| <img src="docs/images/10-fixed-costs.png" width="240" alt="Detected fixed costs in the settings"> | <img src="docs/images/11-overview-light.png" width="240" alt="Overview in light mode"> | <img src="docs/images/12-calendar.png" width="240" alt="Spending calendar in the statistics"> |
+| <img src="docs/images/13-suggestion-swipe.png" width="240" alt="Accepting a category suggestion by swiping"> | <img src="docs/images/14-bank-setup.png" width="240" alt="Wizard for setting up the bank"> | |
 
 ## Features
 
