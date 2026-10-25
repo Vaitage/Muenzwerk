@@ -65,4 +65,6 @@ def test_zwei_abrufe_gleichzeitig(tmp_path, monkeypatch):
     assert sorted(bool(r.get("joined")) for r in results) == [False, True]
     with db.session() as conn:
         n = conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0]
-    assert n == max(r["new"] for r in results) > 0
+    # alles genau einmal gespeichert: gebuchte und (je nach Tag in den Demo-Daten) vorgemerkte
+    first = next(r for r in results if not r.get("joined"))
+    assert n == first["new"] + first.get("new_pending", 0) > 0
