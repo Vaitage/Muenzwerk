@@ -37,6 +37,13 @@ test("klein und Sperrbildschirm", async () => {
   assert.match(inline[0], /^Heute 63/);
   const rect = texts((await runWidget({ family: "accessoryRectangular", response: { status: 200, body: DATA }, now: NOW })).widget);
   assert.deepEqual(rect.length, 3);
+  // Sperrbildschirm breit: was die Zahl ist und wie lange der Monat noch läuft (19.10. → 13 Tage inkl. heute)
+  assert.equal(rect[0], "Übrig · noch 13 Tage");
+  assert.match(rect[2], /^Heute 63/);
+  const last = texts((await runWidget({ family: "accessoryRectangular", response: { status: 200, body: DATA }, now: "2026-10-31T09:30:00" })).widget);
+  assert.equal(last[0], "Münzwerk");   // Zahlen vom 19.10. sind am 31. veraltet → kein „noch 1 Tag“ zu alten Zahlen
+  const en = texts((await runWidget({ family: "accessoryRectangular", language: "en", response: { status: 200, body: DATA }, now: NOW })).widget);
+  assert.equal(en[0], "Left · 13 days to go");
 });
 
 test("Englisch", async () => {

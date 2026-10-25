@@ -16,7 +16,7 @@ const CACHE_FILE = "muenzwerk-widget.json";
 const DE = String(Device.language() || "").toLowerCase().startsWith("de");
 const L = DE ? {
   title: "Münzwerk", left: "Übrig bis Monatsende", today: "Heute", tomorrow: "Morgen", after: "Übermorgen",
-  perDay: "pro Tag", next: "Als Nächstes", on: "am", asOf: "Stand", offline: "offline",
+  perDay: "pro Tag", leftShort: "Übrig", dayLeft: "noch 1 Tag", daysLeft: "noch {n} Tage", next: "Als Nächstes", on: "am", asOf: "Stand", offline: "offline",
   stale: "Münzwerk öffnen für neue Zahlen", noKey: "Skript einmal in Scriptable starten und den Widget-Schlüssel eingeben.",
   badKey: "Widget-Schlüssel ungültig – in Münzwerk neu erzeugen.", noData: "Noch keine Zahlen – Münzwerk einmal öffnen.",
   unreachable: "Pi nicht erreichbar – ist Tailscale an?", bank: "Bankfreigabe", days: "Tage", expired: "abgelaufen",
@@ -25,7 +25,7 @@ const L = DE ? {
   save: "Speichern", cancel: "Abbrechen",
 } : {
   title: "Münzwerk", left: "Left until month end", today: "Today", tomorrow: "Tomorrow", after: "In 2 days",
-  perDay: "per day", next: "Next", on: "on", asOf: "As of", offline: "offline",
+  perDay: "per day", leftShort: "Left", dayLeft: "1 day to go", daysLeft: "{n} days to go", next: "Next", on: "on", asOf: "As of", offline: "offline",
   stale: "Open Münzwerk for new numbers", noKey: "Run this script once in Scriptable and enter the widget key.",
   badKey: "Widget key invalid – create a new one in Münzwerk.", noData: "No numbers yet – open Münzwerk once.",
   unreachable: "Pi not reachable – is Tailscale on?", bank: "Bank access", days: "days", expired: "expired",
@@ -80,8 +80,11 @@ function buildModel(data, now, offline) {
   if (bank.state === "expired") warning = `${L.bank} ${L.expired}`;
   else if (bank.state === "expiring") warning = `${L.bank}: ${bank.days_left} ${L.days}`;
   else if (bank.error) warning = L.fetchFailed;
+  // Resttage inklusive heute (wie „noch n Tage“ in der App)
+  const daysLeft = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate() + 1;
   return {
     left: snap.budget_left_cents,
+    daysLeft,
     days,
     stale: idx < 0 || snap.month !== today.slice(0, 7),
     next: (snap.next_fixed || []).filter((x) => x.day >= now.getDate()).slice(0, 1)[0] || null,
@@ -168,7 +171,15 @@ function render(m, family) {
     text(w, todayCents != null ? `${L.today} ${euro(todayCents)}` : `${euro(m.left)}`, 12, Color.white());
     return w;
   }
-  if (family === "accessoryRectangular" || family === "accessoryCircular") {
+  if (family === "accessoryRectangular") {
+    // Sperrbildschirm, breit: „Übrig · noch 6 Tage“ / Betrag / „Heute …“
+    const rest = m.stale ? L.title : `${L.leftShort} · ${m.daysLeft === 1 ? L.dayLeft : L.daysLeft.replace("{n}", m.daysLeft)}`;
+    text(w, rest, 11, Color.white(), "semibold");
+    text(w, euro(m.left), 18, Color.white(), "bold");
+    if (todayCents != null) text(w, `${L.today} ${euro(todayCents)}`, 12, Color.white());
+    return w;
+  }
+  if (family === "accessoryCircular") {
     text(w, L.title, 11, Color.white(), "semibold");
     text(w, euro(m.left), 18, Color.white(), "bold");
     if (todayCents != null) text(w, `${L.today} ${euro(todayCents)}`, 12, Color.white());
