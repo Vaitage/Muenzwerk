@@ -59,7 +59,7 @@ android {
 dependencies {
     // Die App selbst braucht keine Bibliotheken. Nur für Tests:
     testImplementation "junit:junit:4.13.2"
-    testImplementation "org.json:json:20240303"   // echtes org.json statt der Android-Attrappe
+    testImplementation "org.json:json:20260814"   // echtes org.json statt der Android-Attrappe
     androidTestImplementation "androidx.test:runner:1.6.2"
     androidTestImplementation "androidx.test.ext:junit:1.2.1"
 }

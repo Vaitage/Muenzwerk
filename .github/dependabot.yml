@@ -22,3 +22,8 @@ updates:
     groups:
       android:
         patterns: ["*"]
+    # Android-Gradle-Plugin 9 braucht Gradle 9.6 und eine Umstellung des Projekts –
+    # das als eigene Aufgabe angehen, nicht als Dependabot-Vorschlag (26.10.2026)
+    ignore:
+      - dependency-name: "com.android.application"
+        update-types: ["version-update:semver-major"]
