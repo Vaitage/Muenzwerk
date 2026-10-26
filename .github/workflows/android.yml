@@ -112,7 +112,7 @@ jobs:
 
   release:
     needs: [build, emulator]
-    if: ${{ github.event_name == 'push' && !github.event.repository.private }}
+    if: ${{ github.event_name != 'pull_request' && !github.event.repository.private }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
