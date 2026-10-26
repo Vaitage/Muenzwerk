@@ -24,6 +24,7 @@ window.API = (() => {
   const matchKey = (x) => (/^[a-z]{2}\d{2}[a-z0-9]{11,}$/i.test(ibanKey(x)) ? ibanKey(x) : norm(x));
   const txs = [];
   const today = new Date();
+  const isoDay = (add) => { const x = new Date(today.getTime() + add * 86400000); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; };
   // Ein Beispiel-Sparziel: vor zwei Monaten angelegt, fällig in sieben Monaten
   const monthOf = (d, add) => { const x = new Date(d.getFullYear(), d.getMonth() + add, 15); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}`; };
   let nextGoal = 2;
@@ -165,6 +166,12 @@ window.API = (() => {
       ? ["1822direkt", "Commerzbank", "comdirect", "Consorsbank", "DKB", "Deutsche Bank", "ING", "N26", "Postbank", "Sparkasse Musterstadt", "Volksbank Musterland"].map((name) => ({ name, country }))
       : [{ name: "Musterbank", country }]),
     setupBank: (d) => { setup.bank = d.bank; setup.country = d.country; return ok(d); },
+    // CSV-Import: Vorschau mit Beispielzahlen, Übernehmen legt nichts an (Demo)
+    importStatus: () => ok({ count: 0, from: null, to: null }),
+    importPreview: () => ok({ rows: 412, errors: 0, from: `${today.getFullYear()}-01-01`, to: isoDay(-1), new: 236, duplicates: 176,
+      income_cents: 1530000, expense_cents: -1384250, first_bank: isoDay(-120), overlap: [], overlap_count: 0 }),
+    importCsv: () => ok({ imported: 0, categorized: 0, uncategorized: 0 }),
+    importRemove: () => ok({ removed: 0 }),
     bankSync: () => new Promise((res) => setTimeout(() => {   // simulierte Wartezeit wie bei der Bank
       bank.last_sync = new Date().toISOString();
       res({ ok: true, new: 0, categorized: 0, uncategorized: 0, confirmed: 0, new_pending: 0, pending: txs.filter((t) => t.pending).length });

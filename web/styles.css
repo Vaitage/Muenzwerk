@@ -984,3 +984,17 @@ button.hm:active { transform: scale(0.94); }
 .heat-facts > div { background: var(--surface-2); border-radius: 14px; padding: 10px 12px; min-width: 0; }
 .heat-facts span, .heat-facts small { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .heat-facts b { display: block; font-size: 19px; font-weight: 700; margin: 2px 0 1px; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+
+/* Umsätze nachtragen (CSV) */
+.file-btn { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; cursor: pointer; }
+.file-btn svg { width: 18px; height: 18px; }
+.file-btn input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.file-btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.import-range { font-size: 20px; font-weight: 700; margin: 6px 0 12px; letter-spacing: -0.01em; }
+.import-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.import-stats > div { background: var(--surface-2); border-radius: 14px; padding: 10px 12px; min-width: 0; }
+.import-stats b { display: block; font-size: 19px; font-variant-numeric: tabular-nums; }
+.import-stats span { display: block; font-size: 12px; color: var(--muted); }
+.import-overlap { list-style: none; margin: 6px 0 0; padding: 0; }
+.import-overlap li { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.import-overlap li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

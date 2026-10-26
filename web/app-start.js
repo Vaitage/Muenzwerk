@@ -85,6 +85,7 @@ document.addEventListener("click", async (e) => {
   if (act === "newcat") return openCategorySheet(state.settingsKind);
   if (act === "sync") return runSync(true);
   if (act?.startsWith("widget-")) return widgetAction(act);
+  if (act?.startsWith("import-")) return importAction(act);
   if (act?.startsWith("push-")) return pushAction(act);
 
   const ub = e.target.closest("[data-update]");
@@ -174,6 +175,8 @@ document.addEventListener("change", async (e) => {
     try { pushInfo = await API.pushSettings({ show_amount: pa.checked }); } catch (err) { toast(err.message); pa.checked = !pa.checked; }
     return;
   }
+  const imp = e.target.closest("[data-import-file]");
+  if (imp) return importFile(imp);
   if (e.target.closest(".sheet")) return;
   const fx = e.target.closest("[data-fixed]");
   if (fx) {

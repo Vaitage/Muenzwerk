@@ -6,12 +6,13 @@
 // ------------------------------------------------------------------ Einstellungen
 let rulesCache = [];
 async function viewSettingsAsync() {
-  [rulesCache, updatesInfo, widgetInfo, pushInfo] = await Promise.all([
+  [rulesCache, updatesInfo, widgetInfo, pushInfo, importInfo] = await Promise.all([
     API.rules(), API.updates ? API.updates() : null,
     API.widgetKey ? API.widgetKey().catch((e) => ({ active: false, error: e.message })) : null,
     API.pushStatus ? API.pushStatus().catch((e) => ({ error: e.message })) : null,
     window.Auth?.loadPasskeys(),
-  ]);
+    API.importStatus ? API.importStatus().catch(() => null) : null,
+  ]).then((r) => [...r.slice(0, 4), r[5]]);
   pushLocal = await pushLocalState();
   if (state.view === "settings") render();
   // App mitten in einem Update geöffnet: weiter beobachten
@@ -24,9 +25,11 @@ const SETTINGS_PAGES = {
   rules: () => t("Gelernte Regeln"),
   fixed: () => t("Fixkosten"),
   widget: () => t("Widget"),
+  import: () => t("Umsätze nachtragen"),
 };
 function openSettingsPage(page) {
   if (page !== "widget") widgetNewKey = null;   // Schlüssel nicht länger als nötig zeigen
+  if (page !== "import") { importPreview = null; importText = null; }   // Dateiinhalt nicht aufheben
   state.settingsPage = page;
   window.scrollTo(0, 0);
   render();
@@ -37,6 +40,7 @@ function viewSettings() {
   if (state.settingsPage === "rules") return settingsRules();
   if (state.settingsPage === "fixed") return settingsFixed();
   if (state.settingsPage === "widget") return settingsWidget();
+  if (state.settingsPage === "import") return settingsImport();
   const bank = state.bank;
   const settings = state.settings;
   const fixedSum = A.recurringList(state.ctx).filter((r) => r.kind === "expense" && r.fixed).reduce((s, r) => s + r.amount_cents, 0);
@@ -101,6 +105,7 @@ function viewSettings() {
       ${navRow("categories", "tag", t("Kategorien"), state.categories.length)}
       ${navRow("rules", "sparkle", t("Gelernte Regeln"), userRuleCount || t("noch keine"))}
       ${navRow("fixed", "calendar", t("Fixkosten"), t("{amount} im Monat", { amount: fmt0(fixedSum) }))}
+      ${navRow("import", "inbox", t("Umsätze nachtragen"), importNavValue())}
       ${widgetInfo ? navRow("widget", "phone", t("Widget"), widgetInfo.error ? t("Fehler") : widgetInfo.active ? t("Aktiv") : t("Aus")) : ""}
     </section>
     ${window.Auth ? window.Auth.settingsHtml() : ""}

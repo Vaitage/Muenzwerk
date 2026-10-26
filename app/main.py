@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, Field
 
-from . import __version__, accounts, auth, db, goals, ledger, push, sync, updates, widget, setup
+from . import __version__, accounts, auth, csvimport, db, goals, ledger, push, sync, updates, widget, setup
 from .bank import BankNotConfigured, get_provider
 
 log = logging.getLogger("haushaltsbuch")
@@ -174,6 +174,7 @@ app.include_router(widget.router)
 app.include_router(goals.router)
 app.include_router(push.router)
 app.include_router(setup.router)
+app.include_router(csvimport.router)
 
 
 def get_db():

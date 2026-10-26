@@ -17,7 +17,7 @@ from app import db  # noqa: E402
 
 # App-Dateien in Ladereihenfolge (wie in web/index.html)
 APP_FILES = ["app.js", "app-overview.js", "app-transactions.js", "app-stats.js", "app-wealth.js",
-             "app-sheets.js", "app-settings.js", "app-push-widget.js", "app-setup.js", "app-start.js"]
+             "app-sheets.js", "app-settings.js", "app-push-widget.js", "app-setup.js", "app-import.js", "app-start.js"]
 from app.bank.demo import DemoProvider  # noqa: E402
 
 

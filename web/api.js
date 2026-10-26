@@ -77,6 +77,11 @@ window.API = (() => {
     createGoal: (data) => req("POST", "/api/goals", data),
     updateGoal: (id, data) => req("PATCH", `/api/goals/${id}`, data),
     deleteGoal: (id) => req("DELETE", `/api/goals/${id}`),
+    // Umsätze aus CSV nachtragen (app/csvimport.py)
+    importStatus: () => req("GET", "/api/import/csv"),
+    importPreview: (csv) => req("POST", "/api/import/csv/preview", { csv }),
+    importCsv: (csv) => req("POST", "/api/import/csv", { csv }),
+    importRemove: () => req("DELETE", "/api/import/csv"),
     // iPhone-Widget (app/widget.py)
     widgetKey: () => req("GET", "/api/widget/key"),
     widgetNewKey: () => req("POST", "/api/widget/key"),

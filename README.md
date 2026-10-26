@@ -235,6 +235,14 @@ The widget comes small (left + today) and wide (plus three days and the next fix
 and dark. It reloads about every 30 minutes; tapping the time reloads right away. Address and
 key live only in the app's private storage and are excluded from backups.
 
+### Adding older transactions (CSV)
+
+Via PSD2 the bank usually only delivers the last few months. Under *Settings → Add older transactions*
+you upload the CSV file from online banking (ING: Transactions → Export → CSV, e.g. from 1 January).
+Münzwerk shows a preview first (period, new, already there), recognises transactions that already came
+from the bank (same amount, date ± 3 days, matching payee) and sorts the new ones with your rules.
+Imported transactions can be removed there again.
+
 ### Backups
 
 `tools/backup/` contains example scripts for encrypted nightly backups of `data/`

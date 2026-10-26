@@ -243,6 +243,14 @@ testen“ – fertig. Das Widget gibt es klein (Übrig + heute) und breit (dazu 
 nächsten Fixkosten), hell und dunkel. Es lädt etwa alle 30 Minuten neu; Antippen der Uhrzeit lädt
 sofort. Adresse und Schlüssel liegen nur im privaten Speicher der App und werden nicht gesichert.
 
+### Ältere Umsätze nachtragen (CSV)
+
+Über PSD2 liefert die Bank meist nur die letzten Monate. Unter „Einstellungen → Umsätze nachtragen“ lädst du
+die CSV-Datei aus dem Online-Banking hoch (bei der ING: Umsätze → Export → CSV, z. B. ab 1. Januar). Münzwerk
+zeigt erst eine Vorschau (Zeitraum, neu, schon vorhanden), erkennt Buchungen, die schon von der Bank da sind
+(gleicher Betrag, Datum ± 3 Tage, passender Empfänger), und ordnet die neuen mit deinen Regeln zu. Importierte
+Buchungen lassen sich dort auch wieder entfernen.
+
 ### Backups
 
 Unter `tools/backup/` liegen Beispielskripte für verschlüsselte nächtliche Backups von
