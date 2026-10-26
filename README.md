@@ -78,8 +78,9 @@ Taken from the demo with made-up data.
 - **Bank access monitoring** – PSD2 access expires after 90–180 days. Münzwerk shows
   when, warns a week ahead and offers *Reconnect*.
 - **Passkey sign-in** – Face ID / fingerprint, locks itself after 15 minutes.
-- **iPhone widget** – money left and today's daily budget on the home or lock screen,
-  via the free app [Scriptable](https://scriptable.app) and a read-only widget key.
+- **Widget for iPhone and Android** – money left and today's daily budget on the home screen:
+  iPhone via the free app [Scriptable](https://scriptable.app), Android via a small companion app;
+  both use a read-only widget key.
 - **German and English** – follows your device language and can be switched under *Settings*.
 
 ## How it works
@@ -212,9 +213,9 @@ For a private fork the setup creates a read-only SSH key, which you add once as 
 (without write access) in the repository settings. Log: `~/kontor-update.log`; turn it off with
 `crontab -e`.
 
-### iPhone widget (optional)
+### Widget (optional)
 
-Under *Settings → iPhone widget* you create a widget key and copy a ready-made script for the
+**iPhone:** Under *Settings → Widget* you create a widget key and copy a ready-made script for the
 free app [Scriptable](https://scriptable.app) (the app fills in its own address). Paste it into
 Scriptable, run it once to enter the key, then add a Scriptable widget (small, medium or lock
 screen) and choose the script. It shows money left until month end, the daily budget for the
@@ -224,6 +225,15 @@ The numbers are calculated by the app (exactly as on the overview) and sent to t
 each time you open it; the widget shows that state and says how old it is. iOS decides how
 often widgets refresh. The phone needs to reach the server (e.g. Tailscale on); otherwise
 the widget shows the last state it loaded.
+
+**Android:** Under *Settings → Widget → Android* you download the small widget app
+([release “android-widget”](https://github.com/Vaitage/Muenzwerk/releases/tag/android-widget),
+source in `android/`, no third-party libraries, only the “Internet” permission) and install it
+(Android asks once whether your browser may install apps). Then create a widget key and tap
+*Set up in widget*: the app opens with address and key filled in, tap *Save and test* – done.
+The widget comes small (left + today) and wide (plus three days and the next fixed cost), light
+and dark. It reloads about every 30 minutes; tapping the time reloads right away. Address and
+key live only in the app's private storage and are excluded from backups.
 
 ### Backups
 

@@ -23,7 +23,7 @@ const SETTINGS_PAGES = {
   categories: () => t("Kategorien"),
   rules: () => t("Gelernte Regeln"),
   fixed: () => t("Fixkosten"),
-  widget: () => t("iPhone-Widget"),
+  widget: () => t("Widget"),
 };
 function openSettingsPage(page) {
   if (page !== "widget") widgetNewKey = null;   // Schlüssel nicht länger als nötig zeigen
@@ -101,7 +101,7 @@ function viewSettings() {
       ${navRow("categories", "tag", t("Kategorien"), state.categories.length)}
       ${navRow("rules", "sparkle", t("Gelernte Regeln"), userRuleCount || t("noch keine"))}
       ${navRow("fixed", "calendar", t("Fixkosten"), t("{amount} im Monat", { amount: fmt0(fixedSum) }))}
-      ${widgetInfo ? navRow("widget", "phone", t("iPhone-Widget"), widgetInfo.error ? t("Fehler") : widgetInfo.active ? t("Aktiv") : t("Aus")) : ""}
+      ${widgetInfo ? navRow("widget", "phone", t("Widget"), widgetInfo.error ? t("Fehler") : widgetInfo.active ? t("Aktiv") : t("Aus")) : ""}
     </section>
     ${window.Auth ? window.Auth.settingsHtml() : ""}
     ${pushCard()}

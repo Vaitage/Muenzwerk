@@ -80,8 +80,9 @@ Aufnahmen aus der Vorschau mit erfundenen Beispieldaten.
 - **Bankfreigabe im Blick** – die PSD2-Freigabe läuft nach 90–180 Tagen ab. Münzwerk zeigt
   das Datum, warnt eine Woche vorher und bietet „Neu verbinden“ an.
 - **Anmeldung per Passkey** – Face ID / Fingerabdruck, sperrt sich nach 15 Minuten.
-- **iPhone-Widget** – Übrig und Tagesbudget auf dem Home- oder Sperrbildschirm, über die
-  kostenlose App [Scriptable](https://scriptable.app) und einen nur lesenden Widget-Schlüssel.
+- **Widget für iPhone und Android** – Übrig und Tagesbudget auf dem Startbildschirm: iPhone über die
+  kostenlose App [Scriptable](https://scriptable.app), Android über eine kleine eigene App; beide nur
+  mit einem nur lesenden Widget-Schlüssel.
 - **Deutsch und Englisch** – richtet sich nach der Sprache des Geräts, umschaltbar unter „Einstellungen“.
 
 ## Aufbau
@@ -219,9 +220,9 @@ zurück auf den vorherigen. Bei einem privaten Fork legt die Einrichtung einen n
 SSH-Schlüssel an, den du einmal als *Deploy key* (ohne Schreibrecht) in den Repository-Einstellungen
 einträgst. Protokoll: `~/kontor-update.log`, ausschalten mit `crontab -e`.
 
-### iPhone-Widget (optional)
+### Widget (optional)
 
-Unter „Einstellungen → iPhone-Widget“ erzeugst du einen Widget-Schlüssel und kopierst ein fertiges Skript
+**iPhone:** Unter „Einstellungen → Widget“ erzeugst du einen Widget-Schlüssel und kopierst ein fertiges Skript
 für die kostenlose App [Scriptable](https://scriptable.app) (die eigene Adresse setzt die App ein).
 In Scriptable einfügen, einmal starten und den Schlüssel eingeben, dann ein Scriptable-Widget
 hinzufügen (klein, mittel oder Sperrbildschirm) und das Skript wählen. Es zeigt, was bis
@@ -232,6 +233,15 @@ Die Zahlen rechnet die App (genau wie in der Übersicht) und schickt sie bei jed
 Server; das Widget zeigt diesen Stand und sagt, wie alt er ist. Wie oft Widgets neu laden,
 entscheidet iOS. Das iPhone muss den Server erreichen (z. B. Tailscale an), sonst zeigt das
 Widget den zuletzt geladenen Stand.
+
+**Android:** Unter „Einstellungen → Widget → Android“ lädst du die kleine Widget-App
+([Release „android-widget“](https://github.com/Vaitage/Muenzwerk/releases/tag/android-widget),
+Quellcode in `android/`, ohne Fremdbibliotheken, Berechtigung nur „Internet“) und installierst sie
+(Android fragt einmal, ob der Browser Apps installieren darf). Dann einen Widget-Schlüssel erzeugen
+und „Im Widget einrichten“ antippen: Die App öffnet sich mit Adresse und Schlüssel, „Speichern und
+testen“ – fertig. Das Widget gibt es klein (Übrig + heute) und breit (dazu drei Tage und die
+nächsten Fixkosten), hell und dunkel. Es lädt etwa alle 30 Minuten neu; Antippen der Uhrzeit lädt
+sofort. Adresse und Schlüssel liegen nur im privaten Speicher der App und werden nicht gesichert.
 
 ### Backups
 

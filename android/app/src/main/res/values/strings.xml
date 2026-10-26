@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">Münzwerk</string>
+    <string name="widget_description">Money left until month end and today\'s daily budget</string>
+    <string name="left">Left until month end</string>
+    <string name="left_short">Left · %1$s</string>
+    <string name="today">Today</string>
+    <string name="tomorrow">Tomorrow</string>
+    <string name="after">In 2 days</string>
+    <string name="today_amount">Today %1$s</string>
+    <string name="next">Next: %1$s −%2$s on the %3$s</string>
+    <string name="as_of">As of %1$s</string>
+    <string name="offline_as_of">Offline · as of %1$s</string>
+    <string name="stale">Open Münzwerk for new numbers</string>
+    <plurals name="days_left">
+        <item quantity="one">%d day to go</item>
+        <item quantity="other">%d days to go</item>
+    </plurals>
+    <string name="msg_no_key">Tap to connect the widget to Münzwerk.</string>
+    <string name="msg_bad_key">Widget key invalid – tap to enter a new one.</string>
+    <string name="msg_no_data">No numbers yet – open Münzwerk once.</string>
+    <string name="msg_unreachable">Server not reachable – is Tailscale on?</string>
+    <string name="warn_expired">Bank access expired</string>
+    <string name="warn_expiring">Bank access: %1$d days</string>
+    <string name="warn_failed">Last bank fetch failed</string>
+
+    <string name="setup_title">Widget for Münzwerk</string>
+    <string name="setup_intro">The widget shows what is left until month end, the daily budget for today, tomorrow and the day after, and the next fixed cost. Nothing else: no transactions, no account details.</string>
+    <string name="setup_from_link">Filled in from Münzwerk. Check the address, then tap Save.</string>
+    <string name="setup_url">Münzwerk address</string>
+    <string name="setup_url_hint">https://muenzwerk.example.ts.net</string>
+    <string name="setup_key">Widget key</string>
+    <string name="setup_key_hint">mw_…</string>
+    <string name="setup_key_help">Create it in Münzwerk under Settings → Widget.</string>
+    <string name="setup_save">Save and test</string>
+    <string name="setup_testing">Connecting …</string>
+    <string name="setup_ok">Connected. Left until month end: %1$s</string>
+    <string name="setup_ok_nodata">Connected. No numbers yet – open Münzwerk once.</string>
+    <string name="setup_bad_url">Please enter the https address of your Münzwerk.</string>
+    <string name="setup_bad_key">Please enter the widget key (starts with mw_).</string>
+    <string name="setup_rejected">The key was rejected. Create a new one in Münzwerk.</string>
+    <string name="setup_unreachable">Münzwerk is not reachable (%1$s). Is Tailscale on?</string>
+    <string name="setup_add_title">Add the widget</string>
+    <string name="setup_add">Touch and hold an empty spot on your home screen, tap Widgets and choose Münzwerk. Small or wide – the widget adapts.</string>
+    <string name="setup_add_button">Add to home screen</string>
+    <string name="setup_refresh_note">The numbers are calculated when you open Münzwerk. The widget reloads about every 30 minutes; tap the time at the bottom to reload now.</string>
+    <string name="setup_open">Open Münzwerk</string>
+    <string name="setup_saved_url">Connected to %1$s</string>
+    <string name="preview_amount">€1,234</string>
+    <string name="preview_d0">€42</string>
+    <string name="preview_d1">€45</string>
+    <string name="preview_d2">€45</string>
+    <string name="preview_days_left">6 days to go</string>
+    <string name="preview_next">Next: Rent −€850 on the 1st</string>
+    <string name="preview_footer">As of 08:42</string>
+    <string name="preview_left_short">Left · 6 days to go</string>
+</resources>

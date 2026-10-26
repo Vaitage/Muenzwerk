@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Gleiche Farben wie die Web-App (web/styles.css), dunkel -->
+<resources>
+    <color name="mw_bg">#1C1C1E</color>
+    <color name="mw_chip">#2C2C2E</color>
+    <color name="mw_text">#F5F5F7</color>
+    <color name="mw_muted">#A1A1A6</color>
+    <color name="mw_accent">#9795FF</color>
+    <color name="mw_accent_fill">#5856D6</color>
+    <color name="mw_pos">#30D158</color>
+    <color name="mw_neg">#FF6961</color>
+    <color name="mw_warn">#FFB340</color>
+    <color name="mw_screen">#000000</color>
+    <color name="mw_field">#1C1C1E</color>
+    <color name="mw_line">#14FFFFFF</color>
+</resources>

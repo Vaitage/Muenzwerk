@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">Übrig bis Monatsende und Tagesbudget für heute</string>
+    <string name="left">Übrig bis Monatsende</string>
+    <string name="left_short">Übrig · %1$s</string>
+    <string name="today">Heute</string>
+    <string name="tomorrow">Morgen</string>
+    <string name="after">Übermorgen</string>
+    <string name="today_amount">Heute %1$s</string>
+    <string name="next">Als Nächstes: %1$s −%2$s am %3$s.</string>
+    <string name="as_of">Stand %1$s</string>
+    <string name="offline_as_of">Offline · Stand %1$s</string>
+    <string name="stale">Münzwerk öffnen für neue Zahlen</string>
+    <plurals name="days_left">
+        <item quantity="one">noch %d Tag</item>
+        <item quantity="other">noch %d Tage</item>
+    </plurals>
+    <string name="msg_no_key">Tippen, um das Widget mit Münzwerk zu verbinden.</string>
+    <string name="msg_bad_key">Widget-Schlüssel ungültig – tippen und neuen eingeben.</string>
+    <string name="msg_no_data">Noch keine Zahlen – Münzwerk einmal öffnen.</string>
+    <string name="msg_unreachable">Server nicht erreichbar – ist Tailscale an?</string>
+    <string name="warn_expired">Bankfreigabe abgelaufen</string>
+    <string name="warn_expiring">Bankfreigabe: %1$d Tage</string>
+    <string name="warn_failed">Letzter Bankabruf fehlgeschlagen</string>
+
+    <string name="setup_title">Widget für Münzwerk</string>
+    <string name="setup_intro">Das Widget zeigt, was bis Monatsende übrig ist, das Tagesbudget für heute, morgen und übermorgen und die nächsten Fixkosten. Mehr nicht: keine Umsätze, keine Kontodaten.</string>
+    <string name="setup_from_link">Aus Münzwerk übernommen. Prüfe die Adresse und tippe auf Speichern.</string>
+    <string name="setup_url">Adresse von Münzwerk</string>
+    <string name="setup_url_hint">https://muenzwerk.beispiel.ts.net</string>
+    <string name="setup_key">Widget-Schlüssel</string>
+    <string name="setup_key_hint">mw_…</string>
+    <string name="setup_key_help">Erzeugst du in Münzwerk unter Einstellungen → Widget.</string>
+    <string name="setup_save">Speichern und testen</string>
+    <string name="setup_testing">Verbinde …</string>
+    <string name="setup_ok">Verbunden. Übrig bis Monatsende: %1$s</string>
+    <string name="setup_ok_nodata">Verbunden. Noch keine Zahlen – Münzwerk einmal öffnen.</string>
+    <string name="setup_bad_url">Bitte die https-Adresse deines Münzwerk eingeben.</string>
+    <string name="setup_bad_key">Bitte den Widget-Schlüssel eingeben (beginnt mit mw_).</string>
+    <string name="setup_rejected">Der Schlüssel wurde abgelehnt. Erzeuge in Münzwerk einen neuen.</string>
+    <string name="setup_unreachable">Münzwerk ist nicht erreichbar (%1$s). Ist Tailscale an?</string>
+    <string name="setup_add_title">Widget hinzufügen</string>
+    <string name="setup_add">Halte auf dem Startbildschirm eine freie Stelle gedrückt, tippe auf „Widgets“ und wähle Münzwerk. Klein oder breit – das Widget passt sich an.</string>
+    <string name="setup_add_button">Zum Startbildschirm hinzufügen</string>
+    <string name="setup_refresh_note">Die Zahlen rechnet Münzwerk, wenn du die App öffnest. Das Widget lädt etwa alle 30 Minuten neu; tippe unten auf die Uhrzeit, um sofort neu zu laden.</string>
+    <string name="setup_open">Münzwerk öffnen</string>
+    <string name="setup_saved_url">Verbunden mit %1$s</string>
+    <string name="preview_amount">1.234 €</string>
+    <string name="preview_d0">42 €</string>
+    <string name="preview_d1">45 €</string>
+    <string name="preview_d2">45 €</string>
+    <string name="preview_days_left">noch 6 Tage</string>
+    <string name="preview_next">Als Nächstes: Miete −850 € am 1.</string>
+    <string name="preview_footer">Stand 08:42</string>
+    <string name="preview_left_short">Übrig · noch 6 Tage</string>
+</resources>

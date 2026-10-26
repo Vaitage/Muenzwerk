@@ -1,0 +1,135 @@
+name: Android widget
+
+# Baut die kleine Android-App fürs Widget (android/), testet sie und zeichnet im Emulator
+# Bilder des Widgets. Im öffentlichen Repo wird die signierte APK als Release
+# „android-widget“ veröffentlicht (Download-Link in Münzwerk unter Einstellungen → Widget).
+
+on:
+  push:
+    branches: [main, "android-*"]
+    paths: ["android/**", ".github/workflows/android.yml"]
+  pull_request:
+    paths: ["android/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "8.14.3"
+      - name: Unit tests and lint
+        run: |
+          set -o pipefail
+          gradle --no-daemon testDebugUnitTest lintDebug 2>&1 | tee ../gradle.log
+      - name: Release APK
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/muenzwerk.jks"
+            export ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/muenzwerk.jks"
+          fi
+          set -o pipefail
+          gradle --no-daemon assembleRelease 2>&1 | tee -a ../gradle.log
+          mkdir -p ../out
+          cp app/build/outputs/apk/release/app-release.apk ../out/muenzwerk-widget.apk
+          sha256sum ../out/muenzwerk-widget.apk | tee ../out/muenzwerk-widget.apk.sha256
+          rm -f "$RUNNER_TEMP/muenzwerk.jks"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: apk
+          path: out/
+      - name: Show errors
+        if: failure()
+        working-directory: .
+        run: bash android/ci/fehler-zeigen.sh gradle.log android/app/build/test-results android/app/build/reports/lint-results-debug.txt
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: reports
+          path: android/app/build/reports/
+
+  emulator:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # nur privates Repo: Bilder auf den Zweig ci-bilder (siehe unten)
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "8.14.3"
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Widget in the emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: bash -c 'set -o pipefail; bash android/ci/emulator-bilder.sh 2>&1 | tee emulator.log'
+      - name: Show errors
+        if: failure()
+        run: bash android/ci/fehler-zeigen.sh emulator.log android/build/bilder/instrument.txt
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: bilder
+          path: android/build/bilder/
+      # Im privaten Repo die Bilder zusätzlich als Zweig ablegen – so lassen sie sich mit git holen.
+      - name: Pictures to branch ci-bilder (private repo only)
+        if: ${{ always() && github.event.repository.private }}
+        run: |
+          set -e
+          [ -d android/build/bilder ] || exit 0
+          cd android/build/bilder
+          git init -q -b ci-bilder
+          git -c user.name=ci -c user.email=ci@localhost add -A
+          git -c user.name=ci -c user.email=ci@localhost commit -qm "Bilder von ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" ci-bilder
+
+  release:
+    needs: [build, emulator]
+    if: ${{ github.event_name == 'push' && !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: apk
+          path: out
+      - name: Publish release "android-widget"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HAS_KEY: ${{ secrets.ANDROID_KEYSTORE_B64 != '' }}
+        run: |
+          if [ "$HAS_KEY" != "true" ]; then echo "No signing key – not publishing."; exit 0; fi
+          VERSION=$(sed -n 's/.*versionName "\(.*\)".*/\1/p' android/app/build.gradle)
+          NOTES="Münzwerk widget for Android, version $VERSION. Install the APK on your phone (allow installing from this source once), then set it up from Münzwerk under Settings → Widget. SHA-256: $(cut -d' ' -f1 out/muenzwerk-widget.apk.sha256)"
+          gh release view android-widget >/dev/null 2>&1 || gh release create android-widget --title "Android widget" --notes "$NOTES" --latest=false
+          gh release edit android-widget --title "Android widget $VERSION" --notes "$NOTES"
+          gh release upload android-widget out/muenzwerk-widget.apk out/muenzwerk-widget.apk.sha256 --clobber

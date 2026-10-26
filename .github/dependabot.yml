@@ -15,3 +15,10 @@ updates:
     directory: /
     schedule:
       interval: monthly
+  - package-ecosystem: gradle       # Android-Widget (android/)
+    directory: /android
+    schedule:
+      interval: monthly
+    groups:
+      android:
+        patterns: ["*"]

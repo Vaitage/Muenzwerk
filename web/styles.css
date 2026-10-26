@@ -400,7 +400,7 @@ button.catrow:active { background: var(--surface-2); }
 .period-label { text-align: center; font-weight: 600; margin: -4px 0 12px; color: var(--muted); }
 .month-switch.center { justify-content: center; margin: -6px 0 10px; }
 
-.btn-row { display: flex; gap: 8px; margin-top: 10px; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .btn-row .btn { flex: 1; }
 .btn.danger { background: var(--badge); }
 .toggle-chip {

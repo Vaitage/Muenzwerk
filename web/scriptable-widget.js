@@ -1,6 +1,6 @@
 // Münzwerk – iPhone-Widget für die App „Scriptable“ (https://scriptable.app)
 //
-// Einrichten (steht auch in Münzwerk unter „Einstellungen → iPhone-Widget“):
+// Einrichten (steht auch in Münzwerk unter „Einstellungen → Widget“):
 //  1. Dieses Skript in Scriptable als neues Skript einfügen, Name z. B. „Münzwerk“.
 //  2. Einmal in Scriptable starten und den Widget-Schlüssel aus Münzwerk einfügen.
 //     Er wird im Schlüsselbund des iPhones gespeichert, nicht in diesem Skript.
@@ -21,7 +21,7 @@ const L = DE ? {
   badKey: "Widget-Schlüssel ungültig – in Münzwerk neu erzeugen.", noData: "Noch keine Zahlen – Münzwerk einmal öffnen.",
   unreachable: "Pi nicht erreichbar – ist Tailscale an?", bank: "Bankfreigabe", days: "Tage", expired: "abgelaufen",
   fetchFailed: "Letzter Bankabruf fehlgeschlagen",
-  askTitle: "Widget-Schlüssel", askText: "In Münzwerk unter „Einstellungen → iPhone-Widget“ erzeugen und hier einfügen.",
+  askTitle: "Widget-Schlüssel", askText: "In Münzwerk unter „Einstellungen → Widget“ erzeugen und hier einfügen.",
   save: "Speichern", cancel: "Abbrechen",
 } : {
   title: "Münzwerk", left: "Left until month end", today: "Today", tomorrow: "Tomorrow", after: "In 2 days",
@@ -30,7 +30,7 @@ const L = DE ? {
   badKey: "Widget key invalid – create a new one in Münzwerk.", noData: "No numbers yet – open Münzwerk once.",
   unreachable: "Pi not reachable – is Tailscale on?", bank: "Bank access", days: "days", expired: "expired",
   fetchFailed: "Last bank fetch failed",
-  askTitle: "Widget key", askText: "Create it in Münzwerk under “Settings → iPhone widget” and paste it here.",
+  askTitle: "Widget key", askText: "Create it in Münzwerk under “Settings → Widget” and paste it here.",
   save: "Save", cancel: "Cancel",
 };
 const LOCALE = DE ? "de-DE" : "en-GB";

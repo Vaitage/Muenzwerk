@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Geldbörse wie im Symbol der Web-App (web/icon-512.png) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- in die sichere Mitte (66 dp) verkleinert -->
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.7" android:scaleY="0.7" android:translateX="-0.7" android:translateY="1">
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="4" android:strokeLineCap="round"
+        android:pathData="M32,28.5 H67" />
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="4" android:strokeLineJoin="round"
+        android:pathData="M32,37 H76 A7,7 0 0 1 83,44 V69.5 A7,7 0 0 1 76,76.5 H32 A7,7 0 0 1 25,69.5 V44 A7,7 0 0 1 32,37 Z" />
+    <path android:fillColor="#5856D6" android:strokeColor="#FFFFFF" android:strokeWidth="4" android:strokeLineJoin="round"
+        android:pathData="M64,48.5 H78 A7,7 0 0 1 85,55.5 V58.5 A7,7 0 0 1 78,65.5 H64 A7,7 0 0 1 57,58.5 V55.5 A7,7 0 0 1 64,48.5 Z" />
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M68,57 m-3,0 a3,3 0 1 0 6,0 a3,3 0 1 0 -6,0" />
+    </group>
+</vector>

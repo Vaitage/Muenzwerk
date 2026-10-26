@@ -1,0 +1,17 @@
+// Münzwerk – Android-Widget (eigene kleine App, nur fürs Widget)
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+rootProject.name = "muenzwerk-widget"
+include ":app"

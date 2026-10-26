@@ -1,4 +1,4 @@
-// Münzwerk – Einstellungen: Mitteilungen (Web Push) und iPhone-Widget.
+// Münzwerk – Einstellungen: Mitteilungen (Web Push) und Widget (iPhone über Scriptable, Android über eigene App).
 // Alle app*.js teilen sich einen Gültigkeitsbereich (klassische Skripte, kein Build):
 // Was hier oben steht, sehen die anderen Dateien. Reihenfolge siehe index.html.
 "use strict";
@@ -100,7 +100,11 @@ async function pushAction(act) {
   if (state.view === "settings") render();
 }
 
-// ------------------------------------------------------------------ iPhone-Widget (App „Scriptable“)
+// ------------------------------------------------------------------ Widget (iPhone: App „Scriptable“, Android: android/)
+// Android-App: wird im öffentlichen Repo als Release „android-widget“ gebaut (.github/workflows/android.yml)
+const ANDROID_APK = "https://github.com/Vaitage/Muenzwerk/releases/download/android-widget/muenzwerk-widget.apk";
+const ANDROID_PKG = "io.github.vaitage.muenzwerk";
+let widgetOs = /android/i.test(navigator.userAgent) ? "android" : "ios";
 let widgetInfo = null;      // Antwort von /api/widget/key, null = ausgeblendet (Vorschau)
 let widgetNewKey = null;    // frisch erzeugter Schlüssel – nur bis zum Verlassen der Seite sichtbar
 let widgetScript = null;    // Skript mit eingesetzter Adresse, vorab geladen (iOS kopiert nur direkt beim Tippen)
@@ -118,22 +122,29 @@ async function copyText(text, done) {
   catch { toast(t("Kopieren ging nicht – bitte von Hand markieren.")); }
 }
 
+// Öffnet die Widget-App mit vorausgefüllter Adresse und Schlüssel (gespeichert wird erst dort).
+// Ist sie nicht installiert, lädt Chrome stattdessen die APK.
+function androidSetupLink(key) {
+  const q = `url=${encodeURIComponent(location.origin)}&key=${encodeURIComponent(key)}`;
+  return `intent://setup?${q}#Intent;scheme=muenzwerk;package=${ANDROID_PKG};S.browser_fallback_url=${encodeURIComponent(ANDROID_APK)};end`;
+}
+
 function settingsWidget() {
-  loadWidgetScript();
+  const android = widgetOs === "android";
+  if (!android) loadWidgetScript();
   const w = widgetInfo || { active: false };
-  const steps = [
+  const stepsAndroid = [
+    t("Lade die Widget-App und öffne die Datei. Android fragt einmal, ob dein Browser Apps installieren darf – erlauben."),
+    t("Erzeuge hier einen Widget-Schlüssel und tippe auf „Im Widget einrichten“. In der Widget-App auf „Speichern und testen“ tippen."),
+    t("Halte auf dem Startbildschirm eine freie Stelle gedrückt, tippe auf „Widgets“ und wähle Münzwerk – klein oder breit."),
+  ];
+  const steps = android ? stepsAndroid : [
     t("Installiere die kostenlose App „Scriptable“ aus dem App Store."),
     t("Tippe unten auf „Skript kopieren“. Öffne Scriptable, tippe auf +, füge das Skript ein und nenne es „Münzwerk“."),
     t("Erzeuge hier einen Widget-Schlüssel und kopiere ihn. Starte das Skript einmal in Scriptable (▶) und füge den Schlüssel ein."),
     t("Halte auf dem Homescreen eine freie Stelle gedrückt, tippe auf „Bearbeiten → Widget hinzufügen“, wähle Scriptable (klein oder mittel) und im Widget als Script „Münzwerk“."),
   ];
-  return `
-    <section class="card">
-      <h2>${t("Zahlen auf dem Homescreen")}</h2>
-      <p class="note" style="margin-top:0">${t("Das Widget zeigt, was bis Monatsende übrig ist, das Tagesbudget für heute, morgen und übermorgen und die nächsten Fixkosten. Mehr nicht: keine Umsätze, keine Kontodaten.")}</p>
-      <p class="note">${t("Die Zahlen rechnet Münzwerk, wenn du die App öffnest. Das Widget zeigt diesen Stand; wann es sich neu lädt, entscheidet iOS. Tailscale muss auf dem iPhone an sein.")}</p>
-    </section>
-
+  const keyCard = `
     <section class="card">
       <h2>${t("Widget-Schlüssel")}</h2>
       <div class="row"><div class="grow">
@@ -142,26 +153,49 @@ function settingsWidget() {
       </div></div>
       ${widgetNewKey ? `
         <div class="key-box"><code>${esc(widgetNewKey)}</code></div>
-        <p class="note warn-text" style="margin-top:6px">${t("Wird nur jetzt angezeigt. Kopiere ihn gleich in Scriptable.")}</p>
-        <div class="btn-row"><button class="btn" data-action="widget-copy-key">${t("Schlüssel kopieren")}</button></div>` : ""}
+        <p class="note warn-text" style="margin-top:6px">${android ? t("Wird nur jetzt angezeigt. Übertrage ihn gleich ins Widget.") : t("Wird nur jetzt angezeigt. Kopiere ihn gleich in Scriptable.")}</p>
+        <div class="btn-row">
+          ${android ? `<a class="btn" href="${esc(androidSetupLink(widgetNewKey))}">${t("Im Widget einrichten")}</a>` : ""}
+          <button class="btn ${android ? "secondary" : ""}" data-action="widget-copy-key">${t("Schlüssel kopieren")}</button>
+        </div>` : ""}
       <p class="note">${t("Der Schlüssel darf nur diese Zahlen lesen, sonst nichts. Ein neuer Schlüssel macht den alten sofort ungültig.")}</p>
       <div class="btn-row">
         <button class="btn ${widgetNewKey ? "secondary" : ""}" data-action="widget-new">${w.active ? t("Neuer Schlüssel") : t("Schlüssel erzeugen")}</button>
         ${w.active ? `<button class="btn secondary danger-text" data-action="widget-revoke">${t("Sperren")}</button>` : ""}
       </div>
-    </section>
-
+    </section>`;
+  const stepsCard = `
     <section class="card">
       <h2>${t("So richtest du es ein")}</h2>
       <ol class="steps">${steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>
+      ${android ? `
+      <div class="btn-row">
+        <a class="btn secondary" href="${ANDROID_APK}" rel="noopener">${t("Widget-App laden")}</a>
+      </div>
+      <p class="note">${t("Ohne den Knopf: In der Widget-App die Adresse {url} und den Schlüssel von Hand eingeben.", { url: esc(location.origin) })}</p>` : `
       <div class="btn-row">
         <button class="btn secondary" data-action="widget-copy-script">${t("Skript kopieren")}</button>
         <a class="btn secondary" href="https://apps.apple.com/app/scriptable/id1405459188" target="_blank" rel="noopener">${t("Scriptable öffnen")}</a>
-      </div>
+      </div>`}
     </section>`;
+  return `
+    <div class="seg" role="group" aria-label="${t("Gerät")}">
+      <button data-action="widget-os-ios" aria-pressed="${!android}">iPhone</button>
+      <button data-action="widget-os-android" aria-pressed="${android}">Android</button>
+    </div>
+    <section class="card">
+      <h2>${t("Zahlen auf dem Homescreen")}</h2>
+      <p class="note" style="margin-top:0">${t("Das Widget zeigt, was bis Monatsende übrig ist, das Tagesbudget für heute, morgen und übermorgen und die nächsten Fixkosten. Mehr nicht: keine Umsätze, keine Kontodaten.")}</p>
+      <p class="note">${android
+        ? t("Die Zahlen rechnet Münzwerk, wenn du die App öffnest. Das Widget zeigt diesen Stand und lädt etwa alle 30 Minuten neu. Tailscale muss auf dem Handy an sein.")
+        : t("Die Zahlen rechnet Münzwerk, wenn du die App öffnest. Das Widget zeigt diesen Stand; wann es sich neu lädt, entscheidet iOS. Tailscale muss auf dem iPhone an sein.")}</p>
+    </section>
+
+    ${android ? stepsCard + keyCard : keyCard + stepsCard}`;
 }
 
 async function widgetAction(act) {
+  if (act.startsWith("widget-os-")) { widgetOs = act.slice(10); return render(); }
   if (act === "widget-copy-script") {
     if (!widgetScript) { await loadWidgetScript(); if (!widgetScript) return toast(t("Skript konnte nicht geladen werden.")); }
     return copyText(widgetScript, t("Skript kopiert"));
