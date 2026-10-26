@@ -26,6 +26,17 @@ function viewStats() {
       <button class="icon-btn" data-snav="1" aria-label="${t("vor")}" ${canNext ? "" : "disabled"}>${icon("chevronRight")}</button>
     </div>` : `<div class="period-label">${esc(label)}</div>`}`;
 
+  // Abschnitte statt einer langen Seite; den Kalender gibt es nur für Monat und Jahr
+  const sections = [["over", "chart", t("Überblick")], ...(p !== "all" ? [["cal", "calendar", t("Kalender")]] : []), ["cats", "pie", t("Kategorien")]];
+  const sec = sections.some(([k]) => k === state.statsSection) ? state.statsSection : "over";
+  html += `<nav class="sec-tabs" aria-label="${t("Bereich der Statistik")}" style="--n:${sections.length};--i:${sections.findIndex(([k]) => k === sec)}">
+      <span class="sec-pill" aria-hidden="true"></span>
+      ${sections.map(([k, ic, name]) => `<button data-ssec="${k}" aria-pressed="${k === sec}">${icon(ic)}<span>${name}</span></button>`).join("")}
+    </nav>`;
+  if (sec === "cal") return html + `<div class="sec-body">${heatCard(p, value)}</div>`;
+  if (sec === "cats") return html + `<div class="sec-body">${expenseCard(s, T)}</div>`;
+  html += `<div class="sec-body">`;
+
   // Kennzahlen mit Vergleich
   // Jahre werden über den Monatsschnitt verglichen (das erste Jahr ist oft unvollständig).
   const cmp = (curTotal, prevTotal, goodUp) => {
@@ -77,7 +88,6 @@ function viewStats() {
     </section>`;
   }
 
-  if (p !== "all") html += heatCard(p, value);
 
   // Aufschlüsselung
   const row = (label, cents, sub = false, cls = "") => `<div class="line-row ${sub ? "sub-row" : ""}"><span>${label}</span><span class="${cls}">${fmt(cents)}</span></div>`;
@@ -119,8 +129,7 @@ function viewStats() {
     }) : ""}
   </section>`;
 
-  html += expenseCard(s, T);
-  return html;
+  return html + `</div>`;
 }
 
 // ------------------------------------------------------------------ Heatmap (Statistik)
@@ -138,6 +147,15 @@ function heatCard(p, value) {
     const h = A.heatMonth(state.ctx, value, mode);
     const sel = h.days.find((d) => d.iso === state.heatDay);
     const dayLabel = (d) => new Date(d.iso + "T12:00:00").toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" });
+    // Kennzahlen zum Monat (nur vergangene Tage inkl. heute)
+    const past = h.days.filter((d) => !d.future);
+    const top = past.reduce((a, d) => (!a || d.cents > a.cents ? d : a), null);
+    const free = past.filter((d) => !d.cents).length;
+    const facts = past.length ? `<div class="heat-facts">
+        <div><span>${t("Ø pro Tag")}</span><b>${fmt0(h.total / past.length)}</b></div>
+        <div><span>${t("Teuerster Tag")}</span><b>${top && top.cents ? `${WEEKDAYS[new Date(top.iso + "T12:00:00").getDay()]} ${ord(top.day)} · ${fmt0(top.cents)}` : "–"}</b></div>
+        <div><span>${t("Ohne Ausgaben")}</span><b>${tn(free, "{n} Tag", "{n} Tage")}</b></div>
+      </div>` : "";
     return `<section class="card heat">
       <h2>${t("Ausgaben nach Tag")}</h2>
       ${modeSeg}
@@ -150,6 +168,7 @@ function heatCard(p, value) {
               aria-label="${esc(dayLabel(d))}: ${fmt(d.cents)}">${d.day}</button>`).join("")}
       </div>
       ${legend}
+      ${facts}
       ${sel ? `<div class="heat-day">
         <div class="line-row"><span>${esc(dayLabel(sel))}</span><span>${fmt(sel.cents)}</span></div>
         ${sel.items.length ? `<div class="list">${[...sel.items].sort((a, b) => a.amount_cents - b.amount_cents).map(txRow).join("")}</div>`

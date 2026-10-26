@@ -5,7 +5,7 @@
 
 // Version dieser App-Dateien (gleich wie __version__ in app/__init__.py). Weicht die
 // Version des Servers ab, zeigt das Handy noch eine zwischengespeicherte Fassung.
-const APP_VERSION = "1.15.1";
+const APP_VERSION = "1.16.0";
 const A = window.Analytics;
 const { t, tn, ord, locale } = window.I18N;
 
@@ -39,6 +39,7 @@ const state = {
   month: thisMonth,
   statsPeriod: "month",
   statsExpTab: "cat",       // Statistik → Ausgaben: "cat" (Kategorien) oder "fixed"
+  statsSection: "over",     // Statistik-Abschnitt: "over" (Überblick), "cal" (Kalender), "cats" (Kategorien)
   heatMode: "variable",     // Heatmap: "variable" (nur variable Ausgaben) oder "all"
   heatDay: null,            // in der Heatmap angetippter Tag (YYYY-MM-DD)
   statsMonth: thisMonth,

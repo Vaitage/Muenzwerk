@@ -78,8 +78,10 @@ async def main():
         await p2.screenshot(path=f"{OUT}/{next(shots)}.png")
         # Ausgaben-Kalender (Statistik → Monat)
         await tab("stats"); await page.click("[data-period=month]"); await page.wait_for_timeout(300)
-        await page.evaluate("document.querySelector('.hm-grid').closest('.card').scrollIntoView({block:'center'})")
+        await page.click("[data-ssec=cal]"); await page.wait_for_timeout(600)
+        await page.evaluate("window.scrollTo(0, 0)")
         await shot()
+        await page.click("[data-ssec=over]"); await page.wait_for_timeout(400)
         # Kategorie-Vorschlag und Wischen (Umsätze → Zuordnen, eine Zeile nach links gezogen)
         await tab("transactions"); await page.click("[data-txfilter=open]"); await page.wait_for_timeout(300)
         await page.evaluate("""() => {

@@ -21,6 +21,21 @@ document.addEventListener("click", async (e) => {
 
   const per = e.target.closest("[data-period]");
   if (per) { state.statsPeriod = per.dataset.period; return render(); }
+  const ssec = e.target.closest("[data-ssec]");
+  if (ssec) {
+    if (ssec.getAttribute("aria-pressed") === "true") return;
+    state.statsSection = ssec.dataset.ssec;
+    // Pille erst gleiten lassen, dann den Abschnitt neu zeichnen (ohne Bewegung: sofort)
+    const nav = ssec.closest(".sec-tabs");
+    const calm = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (nav && !calm) {
+      nav.classList.add("moving");
+      nav.style.setProperty("--i", [...nav.querySelectorAll("[data-ssec]")].indexOf(ssec));
+      nav.querySelectorAll("[data-ssec]").forEach((b) => b.setAttribute("aria-pressed", b === ssec));
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    return render();
+  }
   const sn = e.target.closest("[data-snav]");
   if (sn) return navStats(Number(sn.dataset.snav));
 
@@ -44,7 +59,7 @@ document.addEventListener("click", async (e) => {
 
   const act = e.target.closest("[data-action]")?.dataset.action;
   if (act === "goto-stats") {
-    state.view = "stats"; state.statsPeriod = "month"; state.statsMonth = state.month;
+    state.view = "stats"; state.statsPeriod = "month"; state.statsMonth = state.month; state.statsSection = "over";
     window.scrollTo(0, 0); return render();
   }
   if (act === "setup") return openSetupWizard();
@@ -54,9 +69,8 @@ document.addEventListener("click", async (e) => {
   }
   if (act === "goto-stats-cats") {
     state.view = "stats"; state.statsPeriod = "month"; state.statsMonth = state.month; state.statsExpTab = "cat";
-    render();
-    document.getElementById("cat-card-stats")?.scrollIntoView({ block: "start" });
-    return;
+    state.statsSection = "cats";
+    window.scrollTo(0, 0); return render();
   }
   if (act === "goto-inbox") { state.view = "transactions"; state.txFilter = "open"; window.scrollTo(0, 0); return render(); }
   if (act === "goto-settings") { state.view = "settings"; state.settingsPage = null; render(); return viewSettingsAsync(); }
