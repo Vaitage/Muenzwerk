@@ -57,9 +57,11 @@ Taken from the demo with made-up data.
 - **Statistics** – month, year or everything; income vs. expenses, comparison with
   the previous period, savings over time, expenses by category or by fixed cost.
 - **Wealth** – current accounts, savings, brokerage accounts and loans with net
-  worth over time. Balances the bank provides come in automatically; everything
-  else you enter now and then, and Münzwerk projects it from your transfers.
-  Loans are calculated with a repayment plan (interest, debt-free date).
+  worth over time. What comes in automatically depends on your bank: many (e.g. ING) only
+  share the current account via PSD2. Savings and brokerage accounts you enter now and then;
+  in between Münzwerk adds your transfers (and, if you like, savings interest) and reminds you
+  when a brokerage value is getting old. Loans run on their own with a repayment plan
+  (interest, debt-free date, whether this month's instalment went out).
 - **Spending heatmap** – a calendar under *Statistics* shows on which days the money goes;
   tap a day for its transactions, plus a year view with the average per weekday.
 - **Savings goals** – the money stays in your current account: set an amount and a date, Münzwerk plans

@@ -19,14 +19,22 @@ function accountSub(a) {
   if (a.current == null) return t("Noch kein Wert eingetragen");
   if (a.type === "loan" && a.loan) {
     const l = a.loan;
-    if (l.payoffMonth) return t("{amount} im Monat · schuldenfrei ca. {month}", { amount: fmt0(l.payment), month: `${shortMonth(l.payoffMonth)} ${l.payoffMonth.slice(0, 4)}` });
+    const p = a.loanPayment;
+    const paid = p ? (p.paid ? ` · ${t("{month}-Rate abgebucht ✓", { month: shortMonth(p.month) })}`
+      : p.late ? ` · ${t("{month}-Rate noch nicht abgebucht", { month: shortMonth(p.month) })}` : "") : "";
+    if (l.payoffMonth) return t("{amount} im Monat · schuldenfrei ca. {month}", { amount: fmt0(l.payment), month: `${shortMonth(l.payoffMonth)} ${l.payoffMonth.slice(0, 4)}` }) + paid;
     return l.payment ? t("Rate deckt die Zinsen nicht") : t("Rate und Zins fehlen noch");
   }
   if (a.type === "depot" && a.depot) {
     const d = a.depot;
     return `${d.gain >= 0 ? "+" : ""}${fmt0(d.gain)} (${decimal(d.gainPct * 100, 1)} %) ${t("seit {date}", { date: dateDE(d.since) })}${d.stale ? ` · ${t("Wert aktualisieren")}` : ""}`;
   }
-  if (a.type === "savings" && a.monthlyIn) return t("zuletzt {amount} im Monat", { amount: `${a.monthlyIn > 0 ? "+" : ""}${fmt0(a.monthlyIn)}` });
+  if (a.type === "savings") {
+    const parts = [];
+    if (a.monthlyIn) parts.push(t("zuletzt {amount} im Monat", { amount: `${a.monthlyIn > 0 ? "+" : ""}${fmt0(a.monthlyIn)}` }));
+    if (a.interest >= 100) parts.push(t("inkl. ca. {amount} Zinsen", { amount: fmt0(a.interest) }));
+    if (parts.length) return parts.join(" · ");
+  }
   // Vorgemerkte Ausgaben ohne Minus, wie in der Übersicht; Eingänge mit "+"
   const pending = a.pendingCents ? t("inkl. {amount} vorgemerkt", { amount: a.pendingCents < 0 ? fmt(-a.pendingCents) : `+${fmt(a.pendingCents)}` }) : "";
   if (a.estimated && a.lastValueDate) return t("fortgeschrieben seit {date}", { date: dateDE(a.lastValueDate) }) + (pending ? `, ${pending}` : "");
@@ -243,7 +251,10 @@ function viewWealth() {
     return { frac: i / Math.max(1, s.length - 1), html: `<b>${monthLabel(p.month)}</b><br>${t("Vermögen")} ${fmt0(p.assets)}<br>${t("Schulden")} ${fmt0(p.debts)}<br>${t("Netto")} ${fmt0(p.net)}` };
   };
 
-  let html = `<section class="card hero">
+  // Depots liefert die Bank meist nicht (PSD2): sichtbar erinnern, wenn der eingetragene Wert alt ist
+  let html = w.items.filter((a) => a.depot?.stale).map((a) => `<button class="notice warn" data-account="${a.id}">${icon("trend")}
+    <div><b>${t("Depotstand aktualisieren")}</b><span>${t("„{name}“ zuletzt am {date} eingetragen. Tippen und den aktuellen Wert aus deiner Banking-App eintragen – Kursgewinne kann Münzwerk nicht selbst sehen.", { name: esc(a.name), date: dateDE(a.lastValueDate) })}</span></div></button>`).join("");
+  html += `<section class="card hero">
     <div class="sub">${t("Nettovermögen")}</div>
     <div class="big ${w.net >= 0 ? "" : "neg"}" data-count="${w.net}" data-count-key="net">${fmt(w.net)}</div>
     <div class="sub">${t("Vermögen")} ${fmt(w.assets)}${w.debts ? ` · ${t("Schulden")} ${fmt(w.debts)}` : ""}</div>
@@ -293,6 +304,9 @@ function accountFormFields(a = {}) {
         <label class="field"><span>${t("Monatsrate in €")}</span><input type="text" id="acc-pay" inputmode="decimal" value="${euroInput(a.loan_payment_cents)}" placeholder="${decimal(320, 2)}"></label>
       </div>
       <label class="field"><span>${t("Ursprünglicher Kreditbetrag in € (optional)")}</span><input type="text" id="acc-orig" inputmode="decimal" value="${euroInput(a.loan_original_cents)}" placeholder="${decimal(20000, 2)}"></label>` : ""}
+    ${type === "savings" ? `
+      <label class="field"><span>${t("Zins p. a. in % (optional)")}</span><input type="text" id="acc-rate" inputmode="decimal" value="${a.loan_rate_percent ? decimal(a.loan_rate_percent) : ""}" placeholder="${decimal(2, 2)}">
+        <small class="hint">${t("Dann rechnet Münzwerk die Zinsen seit dem letzten eingetragenen Stand grob mit dazu.")}</small></label>` : ""}
     <div class="row"><div class="grow"><div>${t("Im Nettovermögen mitzählen")}</div><div class="hint">${t("Z. B. aus, wenn das Konto einem Kind gehört")}</div></div>
       <label class="switch"><input type="checkbox" id="acc-include" ${a.include_in_total === false ? "" : "checked"}><span></span></label></div>`;
 }
@@ -303,6 +317,10 @@ function readAccountForm(sheet, type) {
     include_in_total: $("#acc-include", sheet).checked,
   };
   if ($("#acc-match", sheet)) data.match = $("#acc-match", sheet).value.trim();
+  if (type === "savings") {
+    const rate = parseEuro($("#acc-rate", sheet).value);
+    data.loan_rate_percent = rate != null ? rate / 100 : 0;   // leer = keine Zinsen
+  }
   if (type === "loan") {
     const rate = parseEuro($("#acc-rate", sheet).value);
     if (rate != null) data.loan_rate_percent = rate / 100;

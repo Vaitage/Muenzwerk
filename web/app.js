@@ -5,7 +5,7 @@
 
 // Version dieser App-Dateien (gleich wie __version__ in app/__init__.py). Weicht die
 // Version des Servers ab, zeigt das Handy noch eine zwischengespeicherte Fassung.
-const APP_VERSION = "1.14.1";
+const APP_VERSION = "1.15.0";
 const A = window.Analytics;
 const { t, tn, ord, locale } = window.I18N;
 

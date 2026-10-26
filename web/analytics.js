@@ -482,14 +482,25 @@
       for (const t of transactions) if (t.pending && t.booking_date <= iso) pendingCents += t.amount_cents;
       v += pendingCents;
     }
+    let interest = 0;
     if (iso >= snap.date) {
       for (const t of linked) if (t.booking_date > snap.date && t.booking_date <= iso) v += flowOf(acc, t);
+      // Sparkonto mit Zinssatz: Zinsen seit dem letzten eingetragenen Stand schätzen (taggenau, ohne Zinseszins;
+      // Banken schreiben sie meist erst zum Quartals- oder Jahresende gut – deshalb nur eine Schätzung)
+      if (acc.type === "savings" && acc.loan_rate_percent > 0) {
+        const days = (a, b) => Math.max(0, (Date.parse(b) - Date.parse(a)) / 864e5);
+        const r = acc.loan_rate_percent / 100 / 365;
+        interest = snap.value_cents * r * days(snap.date, iso);
+        for (const t of linked) if (t.booking_date > snap.date && t.booking_date <= iso) interest += flowOf(acc, t) * r * days(t.booking_date, iso);
+        interest = Math.max(0, Math.round(interest));
+        v += interest;
+      }
     } else {
       for (const t of linked) if (t.booking_date > iso && t.booking_date <= snap.date) v -= flowOf(acc, t);
       // Ein Sparkonto oder Depot kann nicht ins Minus gehen: dann gab es das Konto noch nicht.
       if (acc.type !== "giro" && v < 0) v = 0;
     }
-    return { value: v, estimated: !exact, snapDate: snap.date, pendingCents };
+    return { value: v, estimated: !exact, snapDate: snap.date, pendingCents, interest };
   }
 
   function loanInfo(acc, balance, todayIso) {
@@ -511,7 +522,8 @@
     const today = ctx.todayIso;
     const items = accounts.map((acc) => {
       const cur = accountValueAt(acc, today, tx);
-      const item = { ...acc, current: cur ? cur.value : null, estimated: cur ? cur.estimated : false, pendingCents: cur?.pendingCents || 0 };
+      const item = { ...acc, current: cur ? cur.value : null, estimated: cur ? cur.estimated : false, pendingCents: cur?.pendingCents || 0,
+        interest: cur?.interest || 0 };
       const values = [...(acc.values || [])].sort((a, b) => a.date.localeCompare(b.date));
       item.lastValueDate = values.length ? values[values.length - 1].date : null;
       const linked = linkedTransfers(acc, tx);
@@ -534,7 +546,26 @@
         const from = `${addMonths(today.slice(0, 7), -3)}-01`;
         item.monthlyIn = linked.filter((t) => t.booking_date >= from && t.booking_date < `${today.slice(0, 7)}-01`).reduce((s, t) => s + flowOf(acc, t), 0) / 3;
       }
-      if (acc.type === "loan" && cur) item.loan = loanInfo(acc, cur.value, today);
+      if (acc.type === "loan" && cur) {
+        item.loan = loanInfo(acc, cur.value, today);
+        // Rate in diesem Monat schon abgebucht? (Überweisungen, die zum Kredit passen)
+        if (acc.match) {
+          const outs = linked.filter((t) => t.amount_cents < 0 && !t.pending);
+          const month = today.slice(0, 7);
+          const paid = outs.filter((t) => t.booking_date.slice(0, 7) === month);
+          const days = outs.filter((t) => t.booking_date.slice(0, 7) < month).map((t) => Number(t.booking_date.slice(8, 10))).sort((a, b) => a - b);
+          const usualDay = days.length ? days[Math.floor(days.length / 2)] : null;
+          item.loanPayment = {
+            month,
+            paid: paid.length > 0,
+            date: paid.length ? paid[paid.length - 1].booking_date : null,
+            amount: paid.reduce((s, t) => s - t.amount_cents, 0),
+            usualDay,
+            // erst als „fehlt“ melden, wenn der übliche Abbuchungstag ein paar Tage vorbei ist
+            late: !paid.length && usualDay !== null && ctx.todayDay > usualDay + 3,
+          };
+        }
+      }
       return item;
     });
 

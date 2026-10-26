@@ -356,3 +356,34 @@ test("Monatsrückblick auf den Vormonat", () => {
   assert.equal(r.left, 285000 - 143900 - 20000);
   assert.equal(A.monthReview(ctx, "2025-01"), null);
 });
+
+test("Sparkonto mit Zinssatz: Zinsen seit dem letzten Stand werden geschätzt", () => {
+  const acc = { type: "savings", match: "extra", loan_rate_percent: 3.65,
+    values: [{ date: "2026-01-01", value_cents: 100000 }] };
+  // 1.000 € × 3,65 % / 365 Tage = 10 Cent pro Tag; 10 Tage → 1,00 €
+  const noTx = A.accountValueAt(acc, "2026-01-11", []);
+  assert.equal(noTx.interest, 100);
+  assert.equal(noTx.value, 100100);
+  // Einzahlung von 365 € am 6.1. bringt bis zum 11.1. (5 Tage) noch 0,18 € dazu
+  const tx = [{ id: "e1", booking_date: "2026-01-06", amount_cents: -36500, counterparty: "Extra", purpose: "", category_id: null }];
+  const withTx = A.accountValueAt(acc, "2026-01-11", tx);
+  assert.equal(withTx.interest, 100 + 18);
+  assert.equal(withTx.value, 100000 + 36500 + 118);
+  // ohne Zinssatz und am Stichtag selbst: keine Zinsen
+  assert.equal(A.accountValueAt({ ...acc, loan_rate_percent: null }, "2026-01-11", []).interest, 0);
+  assert.equal(A.accountValueAt(acc, "2026-01-01", []).interest, 0);
+});
+
+test("Kredit: Rate dieses Monats erkannt, „noch nicht abgebucht“ erst nach dem üblichen Tag", () => {
+  const loan = { id: 9, type: "loan", match: "kredit", include_in_total: true, loan_rate_percent: 5, loan_payment_cents: 32000,
+    values: [{ date: "2026-07-01", value_cents: 1000000 }] };
+  const pay = (d) => ({ id: "k" + d, booking_date: d, amount_cents: -32000, counterparty: "Kredit Bank", purpose: "", category_id: null, budget_month: d.slice(0, 7) });
+  const past = [pay("2026-08-01"), pay("2026-09-01")];
+  const mk = (today, list) => A.wealth(A.createContext({ transactions: list, categories, today }), [loan]).items[0].loanPayment;
+  assert.equal(mk("2026-10-02", past).late, false);                 // 1. + 3 Tage Puffer
+  assert.equal(mk("2026-10-06", past).late, true);
+  const ok = mk("2026-10-06", [...past, pay("2026-10-01")]);
+  assert.equal(ok.paid, true);
+  assert.equal(ok.amount, 32000);
+  assert.equal(ok.usualDay, 1);
+});

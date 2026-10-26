@@ -31,12 +31,15 @@ def demo_accounts() -> list[dict]:
     return [
         {**base, "id": 1, "name": "Girokonto", "type": "giro", "icon": "bank", "match": "", "bank": True,
          "values": [{"id": 1, "date": d(0), "value_cents": 234567, "source": "bank"}]},
-        {**base, "id": 2, "name": "Extra-Konto Rücklage", "type": "savings", "icon": "piggy", "match": DEMO_IBAN_EXTRA.lower(), "bank": True,
-         "values": [{"id": 2, "date": d(0), "value_cents": 185000, "source": "bank"}]},
+        # Wie bei der ING: Extra-Konto kommt nicht per PSD2 – ab und zu von Hand, dazwischen fortgeschrieben (+ Zinsen)
+        {**base, "id": 2, "name": "Extra-Konto Rücklage", "type": "savings", "icon": "piggy", "match": DEMO_IBAN_EXTRA.lower(),
+         "loan_rate_percent": 2.0,
+         "values": [{"id": 2, "date": d(160), "value_cents": 120000, "source": "manual"},
+                    {"id": 7, "date": d(40), "value_cents": 165000, "source": "manual"}]},
         {**base, "id": 3, "name": "Direkt-Depot", "type": "depot", "icon": "trend", "match": "direkt-depot",
          "values": [{"id": 3, "date": d(400), "value_cents": 980000, "source": "manual"},
                     {"id": 4, "date": d(190), "value_cents": 1215000, "source": "manual"},
-                    {"id": 5, "date": d(20), "value_cents": 1398000, "source": "manual"}]},
+                    {"id": 5, "date": d(55), "value_cents": 1398000, "source": "manual"}]},
         {**base, "id": 4, "name": "Ratenkredit", "type": "loan", "icon": "receipt", "match": DEMO_IBAN_KREDIT.lower(),
          "loan_rate_percent": 5.49, "loan_payment_cents": 32000, "loan_original_cents": 2000000,
          "values": [{"id": 6, "date": d(0), "value_cents": 1482050, "source": "manual"}]},
