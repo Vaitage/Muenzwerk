@@ -27,7 +27,7 @@ function accountSub(a) {
   }
   if (a.type === "depot" && a.depot) {
     const d = a.depot;
-    return `${d.gain >= 0 ? "+" : ""}${fmt0(d.gain)} (${decimal(d.gainPct * 100, 1)} %) ${t("seit {date}", { date: dateDE(d.since) })}${d.stale ? ` · ${t("Wert aktualisieren")}` : ""}`;
+    return `${d.gain >= 0 ? "+" : ""}${fmt0(d.gain)} (${decimal(d.gainPct * 100, 1)} %) ${t("seit {date}", { date: dateDE(d.since) })}`;
   }
   if (a.type === "savings") {
     const parts = [];
@@ -251,9 +251,7 @@ function viewWealth() {
     return { frac: i / Math.max(1, s.length - 1), html: `<b>${monthLabel(p.month)}</b><br>${t("Vermögen")} ${fmt0(p.assets)}<br>${t("Schulden")} ${fmt0(p.debts)}<br>${t("Netto")} ${fmt0(p.net)}` };
   };
 
-  // Depots liefert die Bank meist nicht (PSD2): sichtbar erinnern, wenn der eingetragene Wert alt ist
-  let html = w.items.filter((a) => a.depot?.stale).map((a) => `<button class="notice warn" data-account="${a.id}">${icon("trend")}
-    <div><b>${t("Depotstand aktualisieren")}</b><span>${t("„{name}“ zuletzt am {date} eingetragen. Tippen und den aktuellen Wert aus deiner Banking-App eintragen – Kursgewinne kann Münzwerk nicht selbst sehen.", { name: esc(a.name), date: dateDE(a.lastValueDate) })}</span></div></button>`).join("");
+  let html = "";
   html += `<section class="card hero">
     <div class="sub">${t("Nettovermögen")}</div>
     <div class="big ${w.net >= 0 ? "" : "neg"}" data-count="${w.net}" data-count-key="net">${fmt(w.net)}</div>

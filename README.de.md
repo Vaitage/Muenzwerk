@@ -61,8 +61,7 @@ Aufnahmen aus der Vorschau mit erfundenen Beispieldaten.
 - **Vermögen** – Girokonten, Sparkonten, Depots und Kredite mit Nettovermögen und Verlauf.
   Was automatisch kommt, hängt von der Bank ab: Viele (z. B. die ING) geben per PSD2 nur das
   Girokonto frei. Extra-Konto und Depot trägst du ab und zu ein; dazwischen rechnet Münzwerk
-  deine Überweisungen (und auf Wunsch die Zinsen) dazu und erinnert, wenn der Depotstand alt
-  wird. Kredite laufen mit Tilgungsplan von allein weiter (Zinsen, schuldenfrei ab, Rate
+  deine Überweisungen (und auf Wunsch die Zinsen) dazu. Kredite laufen mit Tilgungsplan von allein weiter (Zinsen, schuldenfrei ab, Rate
   diesen Monat abgebucht?).
 - **Ausgaben-Heatmap** – ein Kalender in der Statistik zeigt, an welchen Tagen das Geld rausgeht;
   Antippen zeigt die Buchungen des Tages, dazu eine Jahresansicht mit dem Schnitt je Wochentag.

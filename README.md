@@ -59,8 +59,7 @@ Taken from the demo with made-up data.
 - **Wealth** – current accounts, savings, brokerage accounts and loans with net
   worth over time. What comes in automatically depends on your bank: many (e.g. ING) only
   share the current account via PSD2. Savings and brokerage accounts you enter now and then;
-  in between Münzwerk adds your transfers (and, if you like, savings interest) and reminds you
-  when a brokerage value is getting old. Loans run on their own with a repayment plan
+  in between Münzwerk adds your transfers (and, if you like, savings interest). Loans run on their own with a repayment plan
   (interest, debt-free date, whether this month's instalment went out).
 - **Spending heatmap** – a calendar under *Statistics* shows on which days the money goes;
   tap a day for its transactions, plus a year view with the average per weekday.

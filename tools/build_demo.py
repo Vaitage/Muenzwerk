@@ -39,7 +39,7 @@ def demo_accounts() -> list[dict]:
         {**base, "id": 3, "name": "Direkt-Depot", "type": "depot", "icon": "trend", "match": "direkt-depot",
          "values": [{"id": 3, "date": d(400), "value_cents": 980000, "source": "manual"},
                     {"id": 4, "date": d(190), "value_cents": 1215000, "source": "manual"},
-                    {"id": 5, "date": d(55), "value_cents": 1398000, "source": "manual"}]},
+                    {"id": 5, "date": d(20), "value_cents": 1398000, "source": "manual"}]},
         {**base, "id": 4, "name": "Ratenkredit", "type": "loan", "icon": "receipt", "match": DEMO_IBAN_KREDIT.lower(),
          "loan_rate_percent": 5.49, "loan_payment_cents": 32000, "loan_original_cents": 2000000,
          "values": [{"id": 6, "date": d(0), "value_cents": 1482050, "source": "manual"}]},
