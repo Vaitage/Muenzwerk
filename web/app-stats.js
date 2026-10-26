@@ -152,9 +152,9 @@ function heatCard(p, value) {
     const top = past.reduce((a, d) => (!a || d.cents > a.cents ? d : a), null);
     const free = past.filter((d) => !d.cents).length;
     const facts = past.length ? `<div class="heat-facts">
-        <div><span>${t("Ø pro Tag")}</span><b>${fmt0(h.total / past.length)}</b></div>
-        <div><span>${t("Teuerster Tag")}</span><b>${top && top.cents ? `${WEEKDAYS[new Date(top.iso + "T12:00:00").getDay()]} ${ord(top.day)} · ${fmt0(top.cents)}` : "–"}</b></div>
-        <div><span>${t("Ohne Ausgaben")}</span><b>${tn(free, "{n} Tag", "{n} Tage")}</b></div>
+        <div><span>${t("Ø pro Tag")}</span><b>${fmt0(h.total / past.length)}</b><small>${t("bis heute")}</small></div>
+        <div><span>${t("Teuerster Tag")}</span><b>${top && top.cents ? fmt0(top.cents) : "–"}</b><small>${top && top.cents ? `${WEEKDAYS[new Date(top.iso + "T12:00:00").getDay()]} ${ord(top.day)}` : "&nbsp;"}</small></div>
+        <div><span>${t("Ausgabenfrei")}</span><b>${free}</b><small>${tn(free, "Tag", "Tage")} ${t("von {n}", { n: past.length })}</small></div>
       </div>` : "";
     return `<section class="card heat">
       <h2>${t("Ausgaben nach Tag")}</h2>
