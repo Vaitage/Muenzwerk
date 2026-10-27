@@ -563,8 +563,15 @@ html.sheet-open, html.sheet-open body { overflow: hidden; }
 /* Sperrbildschirm (auth.js) */
 body.locked .tabbar { display: none; }
 .lock { min-height: 70svh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; padding: 24px 8px; }
-.lock-icon { width: 72px; height: 72px; border-radius: 22px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
-.lock-icon .ic { width: 38px; height: 38px; }
+.lock-logo { width: 96px; height: 96px; color: var(--accent); }
+.lock-logo .logo { width: 100%; height: 100%; display: block; }
+/* Riffelrand dreht beim Erscheinen drei Zähne ins Ziel und beim Entsperren ein Stück weiter */
+.logo-gear { transform-box: view-box; transform-origin: 50% 50%; }
+.lock-logo.turn-in .logo-gear { animation: gear-in 1100ms cubic-bezier(0.16, 0.84, 0.24, 1) both; }
+.lock-logo.turn-open .logo-gear { animation: gear-open 560ms cubic-bezier(0.5, 0, 0.2, 1) both; }
+@keyframes gear-in { from { transform: rotate(-60deg); } to { transform: rotate(0deg); } }
+@keyframes gear-open { from { transform: rotate(0deg); } to { transform: rotate(80deg); } }
+@media (prefers-reduced-motion: reduce) { .lock-logo .logo-gear { animation: none !important; } }
 .lock h1 { margin: 6px 0 0; font-size: 24px; }
 .lock p { margin: 0 0 8px; color: var(--muted); max-width: 300px; }
 .lock .btn { max-width: 320px; }

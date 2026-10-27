@@ -90,7 +90,7 @@ window.Auth = (() => {
     $("#top").innerHTML = "";
     $("#main").innerHTML = `
       <section class="lock">
-        <div class="lock-icon">${window.icon ? window.icon("shield") : ""}</div>
+        <div class="lock-logo turn-in" aria-hidden="true">${window.logoMark ? window.logoMark() : ""}</div>
         <h1>Münzwerk</h1>
         <p>${first
           ? t("Lege einmalig einen Passkey an. Danach öffnest du die App mit Face ID oder Fingerabdruck.")
@@ -118,6 +118,7 @@ window.Auth = (() => {
           }
           await createPasskey(deviceName(), code);
         } else await usePasskey();
+        await turnGear();
         document.body.classList.remove("locked");
         const done = unlock;
         unlock = null;
@@ -127,6 +128,15 @@ window.Auth = (() => {
         if (!cancelled(err)) $("#auth-msg").textContent = err.message || String(err);
       }
     });
+  }
+
+  // Entsperrt: der Riffelrand dreht ein Stück weiter (wie ein Tresorrad), dann geht es los.
+  async function turnGear() {
+    const logo = $(".lock-logo");
+    if (!logo || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    logo.classList.remove("turn-in");
+    logo.classList.add("turn-open");
+    await new Promise((r) => setTimeout(r, 520));
   }
 
   async function status() {

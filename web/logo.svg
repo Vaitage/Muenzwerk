@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Münzwerk">
+  <g class="logo-gear"><path fill="currentColor" fill-rule="evenodd" d="M45.7 8.7L47.2 3.1L52.8 3.1L54.3 8.7L60 9.7L63.4 5L68.7 6.9L68.2 12.7L73.2 15.6L78 12.3L82.3 15.9L79.9 21.2L83.6 25.6L89.2 24.1L92 29L87.9 33.1L89.9 38.6L95.7 39.1L96.7 44.6L91.4 47.1L91.4 52.9L96.7 55.4L95.7 60.9L89.9 61.4L87.9 66.9L92 71L89.2 75.9L83.6 74.4L79.9 78.8L82.3 84.1L78 87.7L73.2 84.4L68.2 87.3L68.7 93.1L63.4 95L60 90.3L54.3 91.3L52.8 96.9L47.2 96.9L45.7 91.3L40 90.3L36.6 95L31.3 93.1L31.8 87.3L26.8 84.4L22 87.7L17.7 84.1L20.1 78.8L16.4 74.4L10.8 75.9L8 71L12.1 66.9L10.1 61.4L4.3 60.9L3.3 55.4L8.6 52.9L8.6 47.1L3.3 44.6L4.3 39.1L10.1 38.6L12.1 33.1L8 29L10.8 24.1L16.4 25.6L20.1 21.2L17.7 15.9L22 12.3L26.8 15.6L31.8 12.7L31.3 6.9L36.6 5L40 9.7Z M13 50a37 37 0 1 0 74 0a37 37 0 1 0-74 0Z"/></g>
+  <circle cx="50" cy="50" r="31" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".45"/>
+  <path d="M33 68V41L50 58L67 41V68" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="42" cy="27" r="4" fill="currentColor"/><circle cx="58" cy="27" r="4" fill="currentColor"/>
+</svg>

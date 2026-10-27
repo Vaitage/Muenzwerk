@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/logo.svg" width="96" alt=""></p>
+
 # Münzwerk
 
 **Ein selbst gehostetes Haushaltsbuch.** Münzwerk holt die Umsätze deines Bankkontos

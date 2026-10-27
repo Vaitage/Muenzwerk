@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/logo.svg" width="96" alt=""></p>
+
 # Münzwerk
 
 **A self-hosted household budget app.** Münzwerk fetches the transactions of your
