@@ -50,16 +50,16 @@ function viewStats() {
     return `<span class="delta ${good ? "good" : "bad"}">${diff > 0 ? "▲" : "▼"} ${pct} % ${p === "month" ? t("zum Vormonat") : t("Monatsschnitt zum Vorjahr")}</span>`;
   };
   const P = s.previous || {};
-  const kpi = (ic, name, cents, prev, goodUp, cls = "") => `
+  const kpi = (ic, name, cents, prev, goodUp, cls = "", link = false) => `
     <div class="kpi-row">
       <div class="bubble">${icon(ic)}</div>
       <div class="grow"><div>${name}</div>${cmp(cents, prev, goodUp)}${p !== "month" && s.monthsWithData > 1 ? `<div class="hint">${t("Ø {amount} pro Monat", { amount: fmt0(cents / s.monthsWithData) })}</div>` : ""}</div>
-      <div class="val ${cls}">${fmt(cents)}</div>
+      <div class="val ${cls}">${fmt(cents)}</div>${link ? icon("chevronRight", "kpi-chev") : ""}
     </div>`;
   html += `<section class="card">
-    ${kpi("wallet", t("Einkommen"), T.income, P.income, true, "pos")}
+    <button class="kpi-link" data-statincome="all" aria-label="${t("Einkommen im Einzelnen anzeigen")}">${kpi("wallet", t("Einkommen"), T.income, P.income, true, "pos", true)}</button>
     ${kpi("basket", t("Ausgaben"), T.expense, P.expense, false, "neg")}
-    <button class="kpi-link" data-tab="wealth" aria-label="${t("Ersparnisse anzeigen")}">${kpi("piggy", t("Ersparnisse"), T.savings, P.savings, true)}</button>
+    <button class="kpi-link" data-tab="wealth" aria-label="${t("Ersparnisse anzeigen")}">${kpi("piggy", t("Ersparnisse"), T.savings, P.savings, true, "", true)}</button>
     ${kpi("trend", t("Überschuss"), T.surplus, P.surplus, true, T.surplus >= 0 ? "pos" : "neg")}
   </section>`;
 
@@ -91,9 +91,10 @@ function viewStats() {
 
   // Aufschlüsselung
   const row = (label, cents, sub = false, cls = "") => `<div class="line-row ${sub ? "sub-row" : ""}"><span>${label}</span><span class="${cls}">${fmt(cents)}</span></div>`;
+  const incomeRow = (kind, label, cents, sub, cls) => `<button class="line-row line-link ${sub ? "sub-row" : ""}" data-statincome="${kind}"><span>${label}</span><span class="${cls}">${fmt(cents)}${icon("chevronRight", "kpi-chev")}</span></button>`;
   html += `<section class="card">
     <h2>${t("Aufschlüsselung")}</h2>
-    <div class="group">${row(t("Einkommen"), T.income, false, "pos")}${row(t("Regelmäßig"), T.income_regular, true, "pos-soft")}${row(t("Variabel"), T.income_variable, true, "pos-soft")}</div>
+    <div class="group">${incomeRow("all", t("Einkommen"), T.income, false, "pos")}${incomeRow("income_regular", t("Regelmäßig"), T.income_regular, true, "pos-soft")}${incomeRow("income_variable", t("Variabel"), T.income_variable, true, "pos-soft")}</div>
     <div class="group">${row(t("Ausgaben"), -T.expense, false, "neg")}${row(t("Fixkosten"), -T.fixed, true, "neg-soft")}${row(t("Variable Ausgaben"), -T.variable, true, "neg-soft")}${row(t("Große Ausgaben"), -T.large, true, "neg-soft")}</div>
     <div class="group">${row(t("Aufs Sparkonto"), T.saved_in)}${row(t("Vom Sparkonto geholt"), -T.saved_out, true)}</div>
     ${p === "all" && s.years.length ? `<div class="group">${s.years.map((y) => row(`${y.year} <small>${t("Überschuss")}</small>`, y.surplus, true, y.surplus >= 0 ? "pos" : "neg")).join("")}</div>` : ""}

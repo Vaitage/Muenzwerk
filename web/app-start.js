@@ -45,6 +45,8 @@ document.addEventListener("click", async (e) => {
   if (hmode) { state.heatMode = hmode.dataset.heatmode; return render(); }
   const et = e.target.closest("[data-exptab]");
   if (et) { state.statsExpTab = et.dataset.exptab; return render(); }
+  const si = e.target.closest("[data-statincome]");
+  if (si) return openIncomeList(si.dataset.statincome);
   const sc = e.target.closest("[data-statcat]");
   if (sc) return openCategoryList(sc.dataset.statcat, sc.dataset.scope);
   const pot = e.target.closest("[data-savpot]");

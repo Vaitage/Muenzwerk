@@ -272,12 +272,13 @@ function expenseCard(s, T) {
 }
 
 // Liste von Umsätzen in einem Fenster; Antippen öffnet den Umsatz, "Zurück" kommt hierher zurück
-function openTxListSheet(title, sub, list, reopen) {
+function openTxListSheet(title, sub, list, reopen, top = "") {
   const sorted = sortTx(list);
   const total = sorted.reduce((sum, t) => sum + t.amount_cents, 0);
   const sheet = openSheet(`
     <h3>${esc(title)}</h3>
     <div class="meta">${esc(sub)} · ${tn(sorted.length, "{n} Umsatz", "{n} Umsätze")} · ${signed(total)}</div>
+    ${top}
     ${sorted.length ? groupedList(sorted) : `<div class="hint">${t("Keine Umsätze.")}</div>`}`);
   sheet.addEventListener("click", (e) => {
     const b = e.target.closest("[data-tx]");
@@ -292,6 +293,20 @@ function openCategoryList(catId, scope) {
   const list = scopeList(scope).filter((t) => t.amount_cents < 0 && !state.ctx.isSavings(t) && (t.category_id ?? null) === id);
   const name = id == null ? t("Nicht zugeordnet") : catById(id)?.name || t("Kategorie");
   openTxListSheet(name, scopeLabel(scope), list, () => openCategoryList(catId, scope));
+}
+
+// Statistik: alle Eingänge des Zeitraums (kind: "all" | "income_regular" | "income_variable"),
+// oben je Kategorie zusammengefasst, darunter jede einzelne Buchung
+function openIncomeList(kind) {
+  const isIncome = (c) => (kind === "all" ? c === "income_regular" || c === "income_variable" : c === kind);
+  const list = statsPeriodList().filter((t) => t.amount_cents > 0 && isIncome(state.ctx.classOf(t)));
+  const byCat = new Map();
+  for (const t of list) byCat.set(t.category_id ?? null, (byCat.get(t.category_id ?? null) || 0) + t.amount_cents);
+  const rows = [...byCat].sort((a, b) => b[1] - a[1]).map(([id, cents]) =>
+    `<div class="line-row"><span>${esc(id == null ? t("Nicht zugeordnet") : catById(id)?.name || t("Kategorie"))}</span><span class="pos">${fmt(cents)}</span></div>`).join("");
+  const title = kind === "income_regular" ? t("Regelmäßiges Einkommen") : kind === "income_variable" ? t("Variables Einkommen") : t("Einkommen");
+  const top = byCat.size > 1 ? `<div class="income-split">${rows}</div>` : "";
+  openTxListSheet(title, statsPeriodLabel(), list, () => openIncomeList(kind), top);
 }
 
 function openFixedList(key) {

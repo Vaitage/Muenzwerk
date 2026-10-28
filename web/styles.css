@@ -691,6 +691,16 @@ body.locked .tabbar { display: none; }
 .kpi-link { display: block; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; border-top: 1px solid var(--line); }
 .kpi-link:active { background: var(--surface-2); }
 .kpi-link + .kpi-row { border-top: 1px solid var(--line); }
+.card > .kpi-link:first-child { border-top: 0; }
+.kpi-chev { width: 16px; height: 16px; color: var(--muted); flex: none; margin-left: -4px; }
+/* Statistik: Einkommen-Zeilen der Aufschlüsselung sind antippbar */
+.line-link { width: 100%; border: 0; background: none; color: inherit; font: inherit; font-weight: 600; text-align: left; cursor: pointer; min-height: 44px; padding: 5px 0; align-items: center; }
+.line-link.sub-row { font-weight: 400; color: var(--muted); padding-left: 24px; font-size: 15px; }
+.line-link > span:last-child { display: inline-flex; align-items: center; gap: 2px; }
+.line-link .kpi-chev { margin-left: 2px; }
+.line-link:active { background: var(--surface-2); }
+.income-split { margin: 6px 0 12px; padding: 8px 12px; border-radius: 12px; background: var(--surface-2); }
+.income-split .line-row { font-weight: 500; }
 
 /* Einstellungen → iPhone-Widget */
 .key-box { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); overflow-wrap: anywhere; }
