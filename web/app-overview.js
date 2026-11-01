@@ -13,6 +13,15 @@ function withGoals(r) {
     goalPlanned: planned,
     budgetLeft: r.budgetLeft - planned,
     preview: A.fillPreview(r.preview, r.budgetLeft - planned, r.daysLeftIncl),
+    // Prognose und Verlauf zeigen dasselbe „frei“ wie die Kernzahl
+    forecastEnd: r.forecastEnd - planned,
+    forecastLow: r.forecastLow - planned,
+    forecastHigh: r.forecastHigh - planned,
+    series: {
+      actual: r.series.actual.map((p) => ({ ...p, value: p.value - planned })),
+      forecast: r.series.forecast.map((p) => ({ ...p, value: p.value - planned, lo: p.lo - planned, hi: p.hi - planned })),
+      typical: r.series.typical.map((p) => ({ ...p, value: p.value - planned })),
+    },
   };
 }
 
@@ -54,36 +63,7 @@ function viewOverview() {
 
   if (r.status === "current") html += anomalyCards();
 
-  // Prognose bis Monatsende
-  const actual = r.series.actual.map((p) => ({ x: p.day, y: p.value }));
-  const fc = r.series.forecast.map((p) => ({ x: p.day, y: p.value }));
-  const xs = Array.from({ length: r.days }, (_, i) => i + 1);
-  const endPoint = fc.length ? fc.at(-1) : actual.at(-1);
-  chartHandlers.month = (frac) => {
-    const day = Math.round(1 + frac * (r.days - 1));
-    const a = actual.find((p) => p.x === day);
-    const f = fc.find((p) => p.x === day);
-    const p = a || f;
-    if (!p) return null;
-    return {
-      frac: (day - 1) / Math.max(1, r.days - 1),
-      html: `<b>${t("{day} {month}", { day: ord(day), month: shortMonth(r.month) })}</b><br>${a ? t("Stand") : t("Prognose")}: ${fmt(p.y)}`,
-    };
-  };
-  html += `<section class="card">
-    <h2>${r.status === "past" ? t("Verlauf im Monat") : t("Prognose Monatsende")}</h2>
-    <div class="kpi"><span class="big2 ${r.forecastEnd >= 0 ? "pos" : "neg"}">${fmt(r.forecastEnd)}</span>
-      <span class="sub">${r.status === "past" ? t("am Monatsende auf dem Konto geblieben") : t("bleiben voraussichtlich übrig")}</span></div>
-    ${r.status === "current" ? `<p class="note" style="margin:4px 0 0">${t("Hochgerechnet aus deinen Ausgaben in diesem Monat ohne Fixkosten: {amount}/Tag.", { amount: fmt0(r.pace) })}</p>` : ""}
-    ${endPoint ? lineChart({
-      id: "month",
-      xs,
-      series: [{ points: actual, cls: "s-main", area: true }, { points: fc, cls: "s-main", dashed: true }],
-      xLabel: (x) => [1, 10, 20, r.days].map((d) => ({ x: d, label: ord(d) })),
-      endLabel: { point: endPoint, cls: "s-main", aria: `${t("Prognose")} ${fmt(r.forecastEnd)}` },
-    }) : ""}
-    ${r.status !== "past" ? `<div class="legend"><span><i class="sw solid"></i>${t("bisher")}</span><span><i class="sw dash"></i>${t("Prognose")}</span></div>` : ""}
-  </section>`;
+  html += forecastCard(r);
 
   // Noch offen in diesem Monat; die vollständige Aufstellung steht in der Statistik
   const row = (label, cents, cls = "", sub = false) =>
@@ -145,6 +125,150 @@ function flowBars(r) {
     </div>
     <div class="flow-chips">${parts.map(chip).join("")}</div>
   </div>`;
+}
+
+// ------------------------------------------------------------------ Prognose
+// Linie = was bis Monatsende frei ist (wie die Kernzahl): grün im Plus, rot im Minus, darunter ein Schimmer
+// in derselben Farbe bis zur Null-Linie. Gestrichelt die Prognose mit Spanne (Fächer), gepunktet „so läuft es
+// sonst“ (Median der Vormonate), Symbole auf der Achse = noch offene Fixkosten an ihrem Tag.
+const signed0 = (c) => (Math.round(c / 100) > 0 ? "+" : "") + fmt0(c);
+const OUTLOOK = {
+  ok: { label: "Im Plan", icon: "check" },
+  tight: { label: "Knapp", icon: "alert" },
+  minus: { label: "Im Minus", icon: "alert" },
+  early: { label: "Noch früh", icon: "clock" },
+};
+
+function forecastCard(r) {
+  const past = r.status === "past";
+  const pts = (arr) => arr.map((p) => ({ x: p.day, y: p.value }));
+  const actual = pts(r.series.actual), fc = pts(r.series.forecast), typ = pts(r.series.typical);
+  const band = r.series.forecast.map((p) => ({ x: p.day, lo: p.lo, hi: p.hi }));
+  const endPoint = fc.length ? fc.at(-1) : actual.at(-1);
+  const lastDay = r.daysLeftIncl ? r.days : null;
+  chartHandlers.month = (frac) => {
+    const day = Math.round(1 + frac * (r.days - 1));
+    const a = actual.find((p) => p.x === day);
+    const f = r.series.forecast.find((p) => p.day === day);
+    if (!a && !f) return null;
+    const range = !a && f.hi > f.lo ? ` <small>(${fmt0(f.lo)} – ${fmt0(f.hi)})</small>` : "";
+    return {
+      frac: (day - 1) / Math.max(1, r.days - 1),
+      html: `<b>${t("{day} {month}", { day: ord(day), month: shortMonth(r.month) })}</b><br>${a ? t("frei") : t("Prognose")}: ${fmt0(a ? a.y : f.value)}${range}`,
+    };
+  };
+
+  const o = OUTLOOK[r.outlook];
+  const pill = o ? `<span class="outlook ${r.outlook}">${icon(o.icon)}${t(o.label)}</span>` : "";
+  const rangeLine = !past && r.forecastHigh > r.forecastLow
+    ? `<div class="fc-range">${t("wahrscheinlich zwischen {lo} und {hi}", { lo: `<b>${signed0(r.forecastLow)}</b>`, hi: `<b>${signed0(r.forecastHigh)}</b>` })}</div>` : "";
+
+  // Ein Satz in Klartext
+  let say = "";
+  if (r.status === "current" && r.daysLeftIncl > 1) {
+    const vars = { day: ord(lastDay), daily: fmt0(r.remainingDaily), amount: `<b>${fmt0(Math.abs(r.forecastEnd))}</b>` };
+    if (r.outlook === "minus") {
+      const remDays = r.days - r.elapsed;
+      const max = (r.budgetLeft + r.expectedIncomeTotal) / Math.max(1, remDays);
+      say = t("Bei etwa {daily}/Tag fehlen dir bis zum {day} rund {amount}.", vars)
+        + (max > 100 ? " " + t("Mit höchstens {max}/Tag kommst du ohne Minus hin.", { max: `<b>${fmt0(max)}</b>` }) : "");
+    } else if (r.outlook === "early") say = t("Wenn du ausgibst wie sonst, bleiben dir rund {amount}.", vars);
+    else say = t("Gibst du bis zum {day} weiter etwa {daily}/Tag aus, bleiben dir rund {amount}.", vars);
+    if (r.openFixed.length) say += " " + t("Noch offene Fixkosten sind schon eingerechnet.");
+  } else if (r.status === "future") {
+    say = t("Wenn du ausgibst wie sonst, bleiben dir rund {amount}.", { amount: `<b>${fmt0(Math.abs(r.forecastEnd))}</b>` });
+  }
+
+  // Was die Prognose gelernt hat
+  let learn = "";
+  if (!past) {
+    if (r.learnedMonths >= 3) {
+      const share = r.firstHalfShare;
+      const rhythm = share == null ? "" : share > 0.58 ? t("In der ersten Monatshälfte gibst du meist mehr aus als danach.")
+        : share < 0.42 ? t("In der zweiten Monatshälfte gibst du meist mehr aus.") : t("Deine Ausgaben verteilen sich recht gleichmäßig über den Monat.");
+      learn = `${t("Gelernt aus {n} Monaten:", { n: r.learnedMonths })} ${rhythm}`
+        + (r.status === "current" ? " " + t("Dieser Monat zählt schon zu {p} %.", { p: Math.round(r.weight * 100) }) : "");
+    } else if (r.status === "current") {
+      learn = t("Noch zu wenige Vormonate zum Lernen – gerechnet wird mit deinen Ausgaben in diesem Monat.");
+    }
+  }
+
+  const xs = Array.from({ length: r.days }, (_, i) => i + 1);
+  const markers = past ? [] : r.openFixed.map((x) => ({ x: x.day, icon: catById(x.category_id)?.icon || "calendar", label: x.name }));
+  const chart = endPoint ? forecastChart({
+    id: "month", xs, actual, fc, band, typ,
+    today: r.status === "current" ? r.elapsed : null,
+    markers,
+    aria: past ? `${t("Am Monatsende frei")}: ${fmt0(r.forecastEnd)}`
+      : `${t("Prognose")} ${fmt0(r.forecastEnd)}${r.forecastHigh > r.forecastLow ? `, ${fmt0(r.forecastLow)} – ${fmt0(r.forecastHigh)}` : ""}`,
+  }) : "";
+
+  return `<section class="card fc-card">
+    <div class="fc-head"><h2>${past ? t("Verlauf im Monat") : t("Prognose Monatsende")}</h2>${pill}</div>
+    <div class="fc-big"><span class="big2 ${r.forecastEnd >= 0 ? "pos" : "neg"}">${signed0(r.forecastEnd)}</span>
+      <span class="sub">${past ? t("am Monatsende übrig geblieben") : t("voraussichtlich")}</span></div>
+    ${rangeLine}
+    ${chart}
+    ${!past && fc.length ? `<div class="legend fc-legend">
+      ${actual.length ? `<span><i class="sw fc-sw-line"></i>${t("bisher")}</span>` : ""}
+      <span><i class="sw fc-sw-band"></i>${t("Prognose mit Spanne")}</span>
+      ${typ.length ? `<span><i class="sw fc-sw-typ"></i>${t("so läuft es sonst")}</span>` : ""}
+    </div>` : ""}
+    ${say ? `<p class="fc-say">${say}</p>` : ""}
+    ${learn ? `<p class="fc-learn">${icon("sparkle")}<span>${esc(learn)}</span></p>` : ""}
+  </section>`;
+}
+
+function forecastChart({ id, xs, actual, fc, band, typ, today, markers, aria }) {
+  const all = [0, ...actual.map((p) => p.y), ...fc.map((p) => p.y), ...band.flatMap((p) => [p.lo, p.hi]), ...typ.map((p) => p.y)];
+  let min = Math.min(...all), max = Math.max(...all);
+  const pad = (max - min) * 0.12 || 10000;
+  min -= pad; max += pad;
+  const [x0, x1] = [xs[0], xs[xs.length - 1]];
+  const X = (x) => CH.l + ((x - x0) / Math.max(1, x1 - x0)) * (CH.w - CH.l - CH.r);
+  const Y = (y) => CH.t + (1 - (y - min) / (max - min)) * (CH.h - CH.t - CH.b);
+  const top = CH.t, bot = CH.h - CH.b, y0 = Y(0);
+  const z = ((y0 - top) / (bot - top)).toFixed(4);   // Lage der Null-Linie im Verlauf
+  const line = (ps) => ps.map((p, i) => `${i ? "L" : "M"}${X(p.x).toFixed(1)},${Y(p.y).toFixed(1)}`).join("");
+  const grid = niceTicks(min, max).map((v) => `<line x1="${CH.l}" x2="${CH.w - CH.r}" y1="${Y(v)}" y2="${Y(v)}" class="${v === 0 ? "zero" : "grid"}"/>
+    <text x="${CH.w - CH.r}" y="${Y(v) - 3}" class="ytick" text-anchor="end">${esc(fmt0(v))}</text>`).join("");
+  const labelDays = [...new Set([1, today, xs.length].filter(Boolean))];
+  const xt = labelDays.map((d) => `<text x="${X(d)}" y="${CH.h - 4}" class="xtick" text-anchor="${d === 1 ? "start" : d === xs.length ? "end" : "middle"}">${esc(ord(d))}</text>`).join("");
+  const sg = `fc-s-${id}`, ag = `fc-a-${id}`;
+  const defs = `<defs>
+    <linearGradient id="${sg}" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="${top}" y2="${bot}">
+      <stop offset="${z}" class="fc-pos"/><stop offset="${z}" class="fc-neg"/></linearGradient>
+    <linearGradient id="${ag}" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="${top}" y2="${bot}">
+      <stop offset="0" class="fc-pos" stop-opacity="0.26"/><stop offset="${z}" class="fc-pos" stop-opacity="0.03"/>
+      <stop offset="${z}" class="fc-neg" stop-opacity="0.03"/><stop offset="1" class="fc-neg" stop-opacity="0.26"/></linearGradient>
+  </defs>`;
+  const area = actual.length > 1
+    ? `<path d="${line(actual)}L${X(actual.at(-1).x)},${y0}L${X(actual[0].x)},${y0}Z" fill="url(#${ag})"/>` : "";
+  const fan = band.length > 1
+    ? `<path d="${band.map((p, i) => `${i ? "L" : "M"}${X(p.x).toFixed(1)},${Y(p.hi).toFixed(1)}`).join("")}${band.slice().reverse().map((p) => `L${X(p.x).toFixed(1)},${Y(p.lo).toFixed(1)}`).join("")}Z" fill="url(#${ag})" class="fc-fan"/>` : "";
+  const typLine = typ.length > 1 ? `<path d="${line(typ)}" class="fc-typ"/>` : "";
+  const act = actual.length > 1 ? `<path d="${line(actual)}" class="fc-line" stroke="url(#${sg})"/>` : "";
+  const fut = fc.length > 1 ? `<path d="${line(fc)}" class="fc-line fc-dash" stroke="url(#${sg})"/>` : "";
+  const now = today && actual.length ? `<line x1="${X(today)}" x2="${X(today)}" y1="${top}" y2="${bot}" class="fc-today"/>
+    <circle cx="${X(actual.at(-1).x)}" cy="${Y(actual.at(-1).y)}" r="4.5" class="fc-now ${actual.at(-1).y >= 0 ? "pos" : "neg"}"/>` : "";
+  const end = fc.length ? fc.at(-1) : actual.at(-1);
+  const endDot = end ? `<circle cx="${X(end.x)}" cy="${Y(end.y)}" r="4" class="fc-end ${end.y >= 0 ? "pos" : "neg"}"/>` : "";
+  // Fixkosten dicht beieinander: nur ein Symbol je ~16 px, die übrigen stehen im Tooltip daneben
+  const kept = [];
+  for (const m of [...markers].sort((a, b) => a.x - b.x)) {
+    const last = kept.at(-1);
+    if (last && X(m.x) - X(last.x) < 16) last.label += `, ${m.label}`;
+    else kept.push({ ...m });
+  }
+  const marks = kept.map((m) => `<g class="fc-mark"><title>${esc(m.label)}</title>
+    <circle cx="${X(m.x)}" cy="${bot}" r="8"/>
+    <svg class="fc-ic" x="${X(m.x) - 5.5}" y="${bot - 5.5}" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${window.ICONS[m.icon] || window.ICONS.calendar}</svg></g>`).join("");
+  return `<div class="chart fc-chart" data-chart="${id}">
+    <svg viewBox="0 0 ${CH.w} ${CH.h}" role="img" aria-label="${esc(aria)}">
+      ${defs}${grid}${xt}${area}${fan}${typLine}${act}${fut}${now}${endDot}${marks}
+      <line class="cross" y1="${top}" y2="${bot}" x1="0" x2="0" visibility="hidden"/>
+      <rect class="hit" x="0" y="0" width="${CH.w}" height="${CH.h}"/>
+    </svg><div class="tip" hidden></div></div>`;
 }
 
 // ------------------------------------------------------------------ Rückblick und Auffälligkeiten

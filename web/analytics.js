@@ -22,7 +22,10 @@
     maxPerMonth: 2,        // höchstens 2× pro Monat (sonst eher Einkauf)
     maxAmountRatio: 1.3,   // Beträge schwanken höchstens um 30 %
   };
-  const PACE_MIN_DAYS = 7;     // Prognose im laufenden Monat: Ausgaben der ersten Tage auf mind. eine Woche verteilen
+  const PACE_MIN_DAYS = 7;
+  const BLEND_DAYS = 7;        // Prognose: dieser Monat zählt mit elapsed ÷ (elapsed + 7), der Rest kommt aus den Vormonaten
+  const HIST_MONTHS = 6;       // so viele Vormonate lernt die Prognose
+  const LEARN_MIN_MONTHS = 3;  // ab so vielen Vormonaten: Spanne, „so läuft es sonst“, Rhythmus     // Prognose im laufenden Monat: Ausgaben der ersten Tage auf mind. eine Woche verteilen
 
   // ------------------------------------------------------------ Hilfen
   const norm = (s) => String(s || "").toLowerCase().split(/\s+/).filter(Boolean).join(" ");
@@ -228,6 +231,48 @@
     });
   }
 
+  // ------------------------------------------------------------ Ausgaben-Rhythmus der Vormonate
+  // Kumulierte variable Ausgaben je Tag eines Monats (cum[d] = bis einschl. Tag d).
+  function spendCurve(mm, ctx) {
+    const D = daysIn(mm);
+    const cum = new Array(D + 1).fill(0);
+    for (const t of ctx.byMonth.get(mm) || []) {
+      if (ctx.classOf(t) !== "variable") continue;
+      const bm = t.booking_date.slice(0, 7);
+      cum[bm === mm ? Number(t.booking_date.slice(8, 10)) : bm < mm ? 1 : D] += -t.amount_cents;
+    }
+    for (let d = 1; d <= D; d++) cum[d] += cum[d - 1];
+    return { D, cum, total: cum[D] };
+  }
+  // Bis zu HIST_MONTHS abgeschlossene Monate vor m; ein angebrochener erster Monat (Daten erst ab dem 6.) zählt nicht.
+  function spendHistory(m, ctx) {
+    const out = [];
+    for (let k = 1; out.length < HIST_MONTHS && k <= 24; k++) {
+      const hm = addMonths(m, -k);
+      if (hm >= ctx.currentMonth) continue;
+      const list = ctx.byMonth.get(hm);
+      if (!list || !list.length) { if (out.length) break; continue; }
+      const first = list.reduce((a, t) => (t.booking_date < a ? t.booking_date : a), "9999");
+      if (first.slice(0, 7) === hm && Number(first.slice(8, 10)) > 5) break;
+      out.push(spendCurve(hm, ctx));
+    }
+    return out;
+  }
+  // Ausgaben bis Tag d eines Monats mit D Tagen, auf die Länge des Vormonats umgerechnet
+  function cumAt(h, d, D) {
+    const x = (d / D) * h.D;
+    const i = Math.floor(x);
+    if (i >= h.D) return h.total;
+    return h.cum[i] + (h.cum[i + 1] - h.cum[i]) * (x - i);
+  }
+  function quantile(arr, q) {
+    const s = [...arr].sort((a, b) => a - b);
+    if (!s.length) return 0;
+    const p = (s.length - 1) * q;
+    const i = Math.floor(p);
+    return s[i] + (s[Math.min(s.length - 1, i + 1)] - s[i]) * (p - i);
+  }
+
   // ------------------------------------------------------------ Monatsbericht
   function monthReport(m, ctx) {
     const list = ctx.byMonth.get(m) || [];
@@ -260,24 +305,45 @@
     const openFixedTotal = openFixed.reduce((s, x) => s + x.amount_cents, 0);
     const expectedIncomeTotal = expectedIncome.reduce((s, x) => s + x.amount_cents, 0);
 
-    // Tempo der variablen Ausgaben (ohne Fixkosten, ohne große Einzelausgaben).
-    // Laufender Monat: nur was in diesem Monat wirklich ausgegeben wurde, in der ersten Woche auf
-    // mindestens 7 Tage verteilt, damit ein Einkauf am 1. nicht gleich hochgerechnet wird.
-    // Künftiger Monat: Schnitt der letzten 3 Monate.
-    const histMonths = [1, 2, 3].map((k) => addMonths(m, -k)).filter((x) => ctx.byMonth.has(x) && x < ctx.currentMonth);
-    let histSpend = 0, histDays = 0;
-    for (const hm of histMonths) { histSpend += monthTotals(hm, ctx).variable; histDays += daysIn(hm); }
-    const histDaily = histDays ? histSpend / histDays : 0;
-    let pace;
-    if (status === "past") pace = totals.variable / D;
-    else if (elapsed === 0) pace = histDaily;
-    else pace = totals.variable / Math.max(elapsed, PACE_MIN_DAYS);
-
     const budgetLeft = totals.net - openFixedTotal;
-    const remaining = D - elapsed;                       // Tage nach heute
     const daysLeftIncl = status === "current" ? D - ctx.todayDay + 1 : status === "future" ? D : 0;
     const dailyBudget = daysLeftIncl > 0 ? budgetLeft / daysLeftIncl : null;
-    const forecastEnd = status === "past" ? totals.net : Math.round(budgetLeft + expectedIncomeTotal - pace * remaining);
+
+    // ---------------- Prognose: was bis Monatsende noch ausgegeben wird (ohne Fixkosten und große Einzelausgaben)
+    // a) aus diesem Monat: bisheriges Tempo, in der ersten Woche auf mind. 7 Tage verteilt, damit ein Einkauf
+    //    am 1. nicht gleich hochgerechnet wird;
+    // b) gelernt aus bis zu 6 Vormonaten: was dort ab dem gleichen Monatstag noch ausgegeben wurde (Median).
+    // Mischung: dieser Monat zählt mit elapsed ÷ (elapsed + 7) – am 1. wenig, am 15. rund 70 %.
+    const dayNow = status === "current" ? elapsed : 0;     // bis einschl. dieses Tages gebucht
+    const remDays = D - dayNow;
+    const hist = status === "past" ? [] : spendHistory(m, ctx);
+    const learned = hist.length >= LEARN_MIN_MONTHS;
+    let pace;
+    if (status === "past") pace = totals.variable / D;
+    else if (elapsed === 0) pace = 0;
+    else pace = totals.variable / Math.max(elapsed, PACE_MIN_DAYS);
+    const curRem = pace * remDays;
+    const histRems = hist.map((h) => Math.max(0, h.total - cumAt(h, dayNow, D)));
+    const weight = status === "past" ? 1 : !hist.length ? (status === "current" ? 1 : 0) : elapsed / (elapsed + BLEND_DAYS);
+    const histRem = hist.length ? median(histRems) : 0;
+    const remaining = status === "past" ? 0 : weight * curRem + (1 - weight) * histRem;
+    const forecastEnd = status === "past" ? totals.net : Math.round(budgetLeft + expectedIncomeTotal - remaining);
+    // Spanne: wie stark die Vormonate ab hier schwankten (mittlere 60 %), mindestens 10 % des Rests;
+    // ohne genug Vormonate pauschal ±25 %
+    const spread = status === "past" ? 0 : learned
+      ? Math.max((quantile(histRems, 0.8) - quantile(histRems, 0.2)) / 2, remaining * 0.1)
+      : remaining * 0.25;
+    const forecastLow = Math.round(forecastEnd - spread);
+    const forecastHigh = Math.round(forecastEnd + spread);
+
+    // Anteil des Rests, der bis Tag d ausgegeben ist: Rhythmus der Vormonate, gemischt mit gleichmäßig
+    const done = (d) => {
+      if (remDays <= 0) return 1;
+      const lin = (d - dayNow) / remDays;
+      if (!hist.length || histRem <= 0) return lin;
+      const h = Math.min(1, Math.max(0, median(hist.map((x) => cumAt(x, d, D) - cumAt(x, dayNow, D))) / histRem));
+      return weight * lin + (1 - weight) * h;
+    };
 
     // Vorschau heute, morgen, übermorgen: Tagesbudget = (Einnahmen − Abgebuchtes − noch offene Fixkosten)
     // ÷ Tage bis Monatsende (erwartete Einnahmen bis dahin heben es an). Angezeigt wird, was bis zu diesem
@@ -298,39 +364,51 @@
       preview = fillPreview(preview, budgetLeft, daysLeftIncl);
     }
 
-    // Verlauf im Monat (was auf dem Konto übrig ist) und Prognose bis Monatsende.
+    // Verlauf: was am Ende jedes Tages bis Monatsende frei war (wie „Übrig bis Monatsende“): heute = budgetLeft,
+    // davor ohne alles, was danach kam – außer Fixkosten, die von Anfang an eingeplant sind.
     const dayIndex = (t) => {
       const bm = t.booking_date.slice(0, 7);
-      if (bm === m) return Number(t.booking_date.slice(8, 10));
-      return bm < m ? 1 : D;   // z. B. Gehalt vom Vormonat zählt ab Tag 1
+      const d = bm === m ? Number(t.booking_date.slice(8, 10)) : bm < m ? 1 : D;   // z. B. Gehalt vom Vormonat ab Tag 1
+      return status === "current" ? Math.min(d, elapsed) : d;                      // Vormerkungen mit Datum in der Zukunft
     };
-    const daily = new Array(D + 1).fill(0);
-    for (const t of list) daily[dayIndex(t)] += t.amount_cents;   // Kontostand-Wirkung
+    const perDay = new Array(D + 2).fill(0);
+    for (const t of list) if (ctx.classOf(t) !== "fixed") perDay[dayIndex(t)] += t.amount_cents;
+    const lastDay = status === "past" ? D : elapsed;
     const actual = [];
-    let run = 0;
-    for (let d = 1; d <= elapsed; d++) { run += daily[d]; actual.push({ day: d, value: run }); }
+    for (let d = lastDay, later = 0; d >= 1; d--) { actual.push({ day: d, value: Math.round(budgetLeft - later) }); later += perDay[d]; }
+    actual.reverse();
     const forecast = [];
     if (status !== "past") {
-      // Startpunkt: heute (oder Tag 1 eines künftigen Monats mit allem schon Gebuchten)
-      const start = Math.max(elapsed, 1);
-      let v = elapsed ? run : totals.net;
-      for (const x of openFixed) if (x.day <= start) v -= x.amount_cents;
-      for (const x of expectedIncome) if (x.day <= start) v += x.amount_cents;
-      if (!elapsed) v -= pace;
-      forecast.push({ day: start, value: Math.round(v) });
-      for (let d = start + 1; d <= D; d++) {
-        v -= pace;
-        for (const x of openFixed) if (x.day === d) v -= x.amount_cents;
-        for (const x of expectedIncome) if (x.day === d) v += x.amount_cents;
-        forecast.push({ day: d, value: Math.round(v) });
+      const start = Math.max(dayNow, 1);
+      for (let d = start; d <= D; d++) {
+        const inc = expectedIncome.filter((x) => x.day > dayNow && x.day <= d).reduce((s, x) => s + x.amount_cents, 0);
+        const k = done(d);
+        const value = d === D ? forecastEnd : Math.round(budgetLeft + inc - remaining * k);
+        forecast.push({ day: d, value, lo: Math.round(value - spread * k), hi: Math.round(value + spread * k) });
       }
     }
+    // „So läuft es sonst“: gleicher Start, Ausgaben wie im Median der Vormonate
+    const typical = [];
+    if (status !== "past" && learned) {
+      const base = budgetLeft + totals.variable;
+      for (let d = 1; d <= D; d++) {
+        const inc = expectedIncome.filter((x) => x.day > dayNow && x.day <= d).reduce((s, x) => s + x.amount_cents, 0);
+        typical.push({ day: d, value: Math.round(base + inc - median(hist.map((x) => cumAt(x, d, D)))) });
+      }
+    }
+    const halves = hist.filter((h) => h.total > 0).map((h) => cumAt(h, D / 2, D) / h.total);
+    const firstHalfShare = halves.length >= LEARN_MIN_MONTHS ? median(halves) : null;
+    const outlook = status === "past" ? null
+      : forecastEnd < 0 ? "minus"
+      : status === "current" && learned && weight < 0.4 ? "early"
+      : forecastLow < 0 ? "tight" : "ok";
 
     return {
       month: m, status, days: D, elapsed, daysLeftIncl,
-      totals, openFixed, openFixedTotal, expectedIncome, expectedIncomeTotal, histDaily,
-      pace, budgetLeft, dailyBudget, forecastEnd, preview,
-      series: { actual, forecast },
+      totals, openFixed, openFixedTotal, expectedIncome, expectedIncomeTotal,
+      pace, remaining, remainingDaily: remDays > 0 ? remaining / remDays : 0, weight, learnedMonths: hist.length,
+      firstHalfShare, outlook, budgetLeft, dailyBudget, forecastEnd, forecastLow, forecastHigh, preview,
+      series: { actual, forecast, typical },
       byCategory: byCategory(list, ctx),
     };
   }

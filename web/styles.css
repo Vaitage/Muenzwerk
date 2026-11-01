@@ -371,6 +371,44 @@ button.catrow:active { background: var(--surface-2); }
   box-shadow: 0 4px 14px rgba(0,0,0,.25); pointer-events: none; white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
+/* Prognose-Karte */
+.fc-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.fc-head h2 { margin: 0; }
+.outlook { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.outlook .ic { width: 13px; height: 13px; stroke-width: 2.6; }
+.outlook.ok { color: var(--income); background: color-mix(in srgb, var(--income) 13%, transparent); }
+.outlook.tight { color: var(--warn); background: var(--warn-soft); }
+.outlook.minus { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.outlook.early { color: var(--muted); background: var(--surface-2); }
+.fc-big { display: flex; align-items: baseline; gap: 10px; margin-top: 10px; }
+.fc-big .big2 { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; }
+.fc-big .sub { color: var(--muted); font-size: 13px; }
+.fc-range { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.fc-range b { color: var(--text); font-variant-numeric: tabular-nums; }
+.fc-chart { margin-top: 10px; }
+.fc-chart .fc-pos { stop-color: var(--income); }
+.fc-chart .fc-neg { stop-color: var(--danger); }
+.fc-chart .fc-line { fill: none; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.fc-chart .fc-dash { stroke-dasharray: 5 5; }
+.fc-chart .fc-fan { opacity: 0.85; }
+.fc-chart .fc-typ { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 1.5 4; stroke-linecap: round; opacity: 0.8; }
+.fc-chart .fc-today { stroke: var(--text); stroke-width: 1; opacity: 0.3; }
+.fc-chart .fc-now { fill: var(--surface); stroke-width: 2.5; }
+.fc-chart .fc-now.pos, .fc-chart .fc-end.pos { stroke: var(--income); }
+.fc-chart .fc-now.neg, .fc-chart .fc-end.neg { stroke: var(--danger); }
+.fc-chart .fc-end.pos { fill: var(--income); }
+.fc-chart .fc-end.neg { fill: var(--danger); }
+.fc-chart .fc-mark { color: var(--warn); }
+.fc-chart svg.fc-ic { width: 11px; height: 11px; overflow: hidden; }
+.fc-chart .fc-mark circle { fill: var(--surface); stroke: currentColor; stroke-width: 1.2; }
+.fc-legend { flex-wrap: wrap; gap: 6px 14px; }
+.fc-legend .sw { display: inline-block; width: 14px; }
+.fc-sw-line { height: 3px; border-radius: 2px; background: var(--income); }
+.fc-sw-band { height: 10px; border-radius: 3px; background: color-mix(in srgb, var(--income) 22%, transparent); }
+.fc-sw-typ { border-top: 2px dotted var(--muted); }
+.fc-say { margin: 12px 0 0; padding: 12px 14px; border-radius: 14px; background: var(--surface-2); font-size: 14px; line-height: 1.45; }
+.fc-learn { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0 0; font-size: 12px; color: var(--muted); line-height: 1.45; }
+.fc-learn .ic { flex: none; width: 16px; height: 16px; color: var(--accent); margin-top: 1px; }
 .legend { display: flex; gap: 16px; font-size: 12px; color: var(--muted); margin-top: 6px; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .sw { display: inline-block; width: 14px; height: 4px; border-radius: 2px; margin-right: 4px; vertical-align: 2px; }

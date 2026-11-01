@@ -433,20 +433,40 @@ test("Beispiel: 200 € übrig, 10 Tage → 20, 40, 60 €", () => {
   assert.deepEqual(p.map((x) => x.available), [2000, 4000, 6000]);
 });
 
-test("Prognose im laufenden Monat: nur eigene Ausgaben dieses Monats, erste Woche auf 7 Tage verteilt", () => {
+test("Prognose lernt aus den Vormonaten und mischt mit dem laufenden Monat", () => {
   const list = sample();                                   // Vormonate: 3 × 30 € REWE je Monat
   list.push(tx("2026-10-30", 285000, "Muster GmbH", 4, "2026-11"));
   const at = (today, extra = []) => A.monthReport("2026-11",
     A.createContext({ transactions: [...list, ...extra], categories, settings: { large_expense_cents: 25000 }, today }));
-  // noch nichts ausgegeben → Prognose = Übrig
+  // noch nichts ausgegeben → kein Tempo aus diesem Monat, aber die Vormonate sagen: es kommt noch etwas
   const r0 = at("2026-11-02");
   assert.equal(r0.pace, 0);
-  assert.equal(r0.forecastEnd, r0.budgetLeft);
-  // 70 € am 2. → 10 €/Tag (auf 7 Tage verteilt), nicht 35 €/Tag
+  assert.ok(r0.learnedMonths >= 3);
+  assert.ok(Math.abs(r0.weight - 2 / 9) < 1e-9);
+  assert.ok(r0.forecastEnd < r0.budgetLeft && r0.forecastEnd > r0.budgetLeft - 9000);
+  assert.ok(r0.forecastLow <= r0.forecastEnd && r0.forecastEnd <= r0.forecastHigh);
+  assert.equal(r0.outlook, "early");
+  // 70 € am 2. → Tempo 10 €/Tag (auf 7 Tage verteilt), nicht 35 €/Tag
   const r1 = at("2026-11-02", [tx("2026-11-02", -7000, "REWE", 2)]);
   assert.equal(r1.pace, 1000);
-  assert.equal(r1.forecastEnd, Math.round(r1.budgetLeft - 1000 * 28));
-  // ab Tag 7 zählt der echte Schnitt
+  // ab Tag 7 zählt der echte Schnitt, dieser Monat wiegt mehr
   const r2 = at("2026-11-14", [tx("2026-11-02", -7000, "REWE", 2)]);
   assert.equal(r2.pace, 500);
+  assert.ok(Math.abs(r2.weight - 14 / 21) < 1e-9);
+  // Verlauf: heute = Übrig, Prognose endet bei forecastEnd, Spanne umschließt die Linie
+  assert.equal(r2.series.actual.at(-1).value, Math.round(r2.budgetLeft));
+  assert.equal(r2.series.forecast.at(-1).value, r2.forecastEnd);
+  for (const p of r2.series.forecast) assert.ok(p.lo <= p.value && p.value <= p.hi);
+  assert.equal(r2.series.typical.length, 30);
+});
+
+test("Prognose ohne Vormonate: nur das Tempo dieses Monats", () => {
+  const list = [tx("2026-11-01", 285000, "Muster GmbH", 4), tx("2026-11-02", -7000, "REWE", 2)];
+  const r = A.monthReport("2026-11", A.createContext({ transactions: list, categories, settings: {}, today: "2026-11-02" }));
+  assert.equal(r.learnedMonths, 0);
+  assert.equal(r.weight, 1);
+  assert.equal(r.forecastEnd, Math.round(r.budgetLeft - 1000 * 28));
+  assert.equal(r.series.typical.length, 0);
+  // Frei-Linie: vor dem Einkauf am 2. war mehr frei
+  assert.equal(r.series.actual[0].value, Math.round(r.budgetLeft + 7000));
 });
