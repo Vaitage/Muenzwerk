@@ -387,3 +387,31 @@ test("Kredit: Rate dieses Monats erkannt, „noch nicht abgebucht“ erst nach d
   assert.equal(ok.amount, 32000);
   assert.equal(ok.usualDay, 1);
 });
+
+test("Vorgemerkte Fixkosten unter anderem Namen werden nicht doppelt abgezogen", () => {
+  const list = sample();
+  // Versicherung und Fitness laufen jeden Monat; im November erst als Vormerkung, anders benannt
+  for (const m of ["2026-08", "2026-09", "2026-10"]) {
+    list.push(tx(`${m}-01`, -36750, "Swiss Life SE", 1));
+    list.push(tx(`${m}-01`, -3300, "A.I. Fitness GmbH", 1));
+    list.push(tx(`${m}-02`, -8439, "SIGNAL IDUNA Gruppe", 1));
+  }
+  list.push(tx("2026-10-30", 285000, "Muster GmbH", 4, "2026-11"));
+  list.push({ ...tx("2026-11-02", -36750, "Swiss Life Lebensver", 1), pending: 1 });
+  list.push({ ...tx("2026-11-02", -3300, "all inclusive Fitness GmbH", 1), pending: 1 });
+  list.push({ ...tx("2026-11-02", -8692, "SIGNAL IDUNA Gruppe", 1), pending: 1 });
+  const ctx = A.createContext({ transactions: list, categories, settings: { large_expense_cents: 25000 }, today: "2026-11-01" });
+  const r = A.monthReport("2026-11", ctx);
+  const open = r.openFixed.map((x) => x.name).sort();
+  assert.deepEqual(open, ["Hausverwaltung"]);            // nur die Miete steht noch aus
+  // Gehalt minus Vormerkungen minus Miete
+  assert.equal(r.budgetLeft, 285000 - 36750 - 3300 - 8692 - 85000);
+});
+
+test("Eine fremde Zahlung mit gleichem Betrag deckt keine Fixkosten", () => {
+  const list = sample();
+  list.push(tx("2026-10-30", 285000, "Muster GmbH", 4, "2026-11"));
+  list.push(tx("2026-11-01", -85000, "Autohaus Beispiel", 1));
+  const ctx = A.createContext({ transactions: list, categories, settings: { large_expense_cents: 25000 }, today: "2026-11-01" });
+  assert.ok(A.monthReport("2026-11", ctx).openFixed.some((x) => x.name === "Hausverwaltung"));
+});

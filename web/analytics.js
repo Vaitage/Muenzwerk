@@ -187,6 +187,34 @@
     return [...groups.values()].sort((a, b) => b.total - a.total);
   }
 
+  // ------------------------------------------------------------ Fixkosten schon im Monat?
+  // Banken melden Vormerkungen oft unter anderem Namen („Swiss Life Lebensver“ statt „Swiss Life SE“,
+  // „all inclusive Fitness“ statt „A.I. Fitness“) und mit leicht anderem Betrag. Eine Zahlung des Monats
+  // deckt eine erwartete Fixkosten-Position, wenn Richtung und Betrag passen (±20 % bzw. ±5 €) und der
+  // Empfänger gleich ist oder ein Wort teilt. Jede Zahlung deckt höchstens eine Position.
+  const COVER_STOP = new Set(["gmbh", "mbh", "ag", "se", "kg", "co", "ug", "ohg", "ev", "eg", "ltd", "inc", "und",
+    "der", "die", "das", "von", "fuer", "für", "gruppe", "group", "bank", "sagt", "danke", "deutschland", "germany"]);
+  const coverWords = (s) => new Set(norm(s).split(/[^a-z0-9äöüß]+/).filter((w) => w.length >= 3 && !COVER_STOP.has(w)));
+  function coverFinder(list) {
+    const used = new Set();
+    return (info) => {
+      const want = info.kind === "income" ? 1 : -1;
+      const words = coverWords(info.name);
+      let best = null, bestDiff = Infinity;
+      for (const t of list) {
+        if (used.has(t) || Math.sign(t.amount_cents) !== want) continue;
+        const a = Math.abs(t.amount_cents), b = info.amount_cents;
+        const diff = Math.abs(a - b);
+        if (diff > Math.max(b * 0.2, 500)) continue;
+        const same = norm(t.counterparty) === info.pattern;
+        if (!same && ![...coverWords(t.counterparty)].some((w) => words.has(w))) continue;
+        if (diff < bestDiff) { best = t; bestDiff = diff; }
+      }
+      if (best) used.add(best);
+      return !!best;
+    };
+  }
+
   // ------------------------------------------------------------ Monatsbericht
   function monthReport(m, ctx) {
     const list = ctx.byMonth.get(m) || [];
@@ -200,9 +228,13 @@
     const expectedIncome = [];
     if (status !== "past") {
       const recent = new Set([addMonths(m, -1), addMonths(m, -2)]);
+      const covers = coverFinder(list);
       for (const info of ctx.recurring.values()) {
         if (!info.fixed || info.months.has(m)) continue;
         if (![...info.months].some((x) => recent.has(x))) continue;
+        // Schon im Monat, nur anders gemeldet (Vormerkung, anderer Empfängername, Betrag leicht anders)?
+        // Dann zählt sie bereits in den Summen und darf nicht noch einmal abgezogen werden.
+        if (covers(info)) continue;
         let day = Math.min(info.day, D);
         const overdue = status === "current" && day < ctx.todayDay;
         if (overdue) day = ctx.todayDay;
