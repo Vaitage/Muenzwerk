@@ -871,10 +871,27 @@ button.hm:active { transform: scale(0.94); }
 
 /* Übersicht: Tageswert und Balken unter der Kernzahl */
 .per-day { font-size: 16px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
-.hero-bar { position: relative; height: 10px; border-radius: 5px; background: var(--surface-2); margin: 14px 0 4px; overflow: visible; }
-.hero-bar .fill { height: 100%; border-radius: 5px; background: var(--income); }
-.hero-bar .fill.low { background: var(--warn); }
-.hero-bar .mark { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--text); }
+/* Übersicht: Einnahmen und Ausgaben als zwei Balken, darunter Symbole mit Betrag */
+.flow { margin: 16px -16px 0; padding: 14px 16px 0; border-top: 1px solid var(--surface-2); text-align: left; }
+.flow-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; color: var(--muted); }
+.flow-head small { font-size: 12px; }
+.flow-head b { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.flow-head b.pos { color: var(--income); }
+.flow-track { display: flex; gap: 2px; height: 10px; border-radius: 5px; background: var(--surface-2); overflow: hidden; margin: 6px 0 12px; }
+.flow-track i { display: block; flex: none; height: 100%; border-radius: 3px; background: var(--hue, var(--muted)); }
+.flow-track i.income { background: var(--income); border-radius: 5px; }
+.flow-track i.rest, .flow-track i.none { background: color-mix(in srgb, var(--muted) 55%, transparent); }
+.flow-track i.open { background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--text) 32%, transparent) 0 3px, transparent 3px 6px); }
+.flow-chips { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); margin: -2px -4px 0; }
+.flow-chip { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; min-height: 44px; padding: 4px 0;
+  background: none; border: 0; color: var(--text); font: inherit; cursor: pointer; }
+div.flow-chip { cursor: default; }
+.flow-chip .bubble { width: 34px; height: 34px; border-radius: 11px; }
+.flow-chip .bubble .ic { width: 18px; height: 18px; }
+.flow-chip .bubble.rest { background: var(--surface-2); color: var(--muted); }
+.flow-chip .bubble.open { background: transparent; color: var(--muted); border: 1.5px dashed var(--muted); }
+.flow-chip .amt { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.flow-chip.open .amt, .flow-chip.rest .amt { color: var(--muted); }
 .hero .stand { justify-content: center; text-align: left; }
 
 /* Übersicht: drei größte Kategorien */

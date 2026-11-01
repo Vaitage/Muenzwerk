@@ -26,21 +26,11 @@ function viewOverview() {
   // Übrig im Monat, darunter Tagesbudget mit 3-Tage-Vorschau
   const heroLabel = r.status === "past" ? t("Übrig am Ende vom {month}", { month: monthName(r.month) }) : r.status === "future" ? t("Geplant übrig im {month}", { month: monthName(r.month) }) : t("Übrig bis Monatsende");
   const showDays = r.status === "current" && r.preview.length;
-  // Balken: wie viel vom Geld dieses Monats (Einnahmen) noch frei ist; der Strich zeigt,
-  // wie viel vom Monat noch übrig ist – liegt die Füllung rechts davon, reicht es gut.
-  const pool = T.income;
-  const freeShare = pool > 0 ? Math.max(0, Math.min(1, r.budgetLeft / pool)) : null;
-  const dayShare = r.status === "current" ? r.daysLeftIncl / r.days : null;
-  const pct = (x) => (x * 100).toFixed(1) + "%";
-  const bar = freeShare === null ? "" : `<div class="hero-bar" role="img" aria-label="${esc(t("{p} der Einnahmen dieses Monats noch frei", { p: Math.round(freeShare * 100) + " %" }))}">
-      <div class="fill ${dayShare !== null && freeShare < dayShare ? "low" : ""}" style="width:${pct(freeShare)}"></div>
-      ${dayShare !== null ? `<div class="mark" style="left:${pct(dayShare)}"></div>` : ""}
-    </div>`;
   html += `<section class="card hero">
     <div class="sub">${heroLabel}</div>
     <div class="big ${r.budgetLeft >= 0 ? "pos" : "neg"}" data-count="${r.budgetLeft}" data-count-key="left:${r.month}">${fmt(r.budgetLeft)}</div>
     ${showDays ? `<div class="per-day">${t("{amount}/Tag", { amount: fmt(r.preview[0].daily) })} · ${tn(r.daysLeftIncl, "noch {n} Tag", "noch {n} Tage")}</div>` : ""}
-    ${bar}
+    ${flowBars(r)}
     ${standHtml(r)}
     ${showDays ? `
       <div class="days3">
@@ -118,6 +108,43 @@ function viewOverview() {
 
   html += topCategories(r.byCategory, T.expense);
   return html;
+}
+
+// Einnahmen und Ausgaben des Monats als zwei Balken: Ausgaben nach Kategorie (größte FLOW_TOP einzeln,
+// der Rest grau), Gespartes, noch offene Fixkosten und eingeplante Sparrate schraffiert. Was rechts
+// frei bleibt, ist genau „Übrig bis Monatsende“. Maßstab: das Größere von Einnahmen und Ausgaben.
+// Darunter je Teil ein Symbol mit Betrag (ohne Namen); Antippen zeigt die Buchungen.
+const FLOW_TOP = 4;
+const num0 = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 });
+function flowBars(r) {
+  const T = r.totals;
+  const cats = r.byCategory.filter((c) => c.total > 0);
+  const parts = cats.slice(0, FLOW_TOP).map((c) => ({ cat: c, total: c.total, cls: c.id ? hueCls(c) : "none", icon: c.icon, name: c.name }));
+  const rest = cats.slice(FLOW_TOP).reduce((s, c) => s + c.total, 0);
+  if (rest > 0) parts.push({ kind: "rest", total: rest, cls: "rest", icon: "more", name: t("Weitere Kategorien") });
+  if (T.savings > 0) parts.push({ kind: "save", total: T.savings, cls: "hue6", icon: "piggy", name: t("Gespart") });
+  const pending = r.openFixedTotal + (r.goalPlanned || 0);
+  if (pending > 0) parts.push({ kind: "open", total: pending, cls: "open", icon: "clock", name: t("Noch offen") });
+  const spent = parts.reduce((s, p) => s + p.total, 0);
+  const scale = Math.max(T.income, spent);
+  if (scale <= 0) return "";
+  const w = (x) => ((x / scale) * 100).toFixed(2) + "%";
+  const label = (p) => `${p.name}: ${fmt0(p.total)}`;
+  const chip = (p) => {
+    const inner = `<span class="bubble ${p.cls}">${icon(p.icon)}</span><span class="amt">${num0.format(Math.round(p.total / 100))}</span>`;
+    if (p.cat) return `<button class="flow-chip" data-statcat="${p.cat.id ?? "none"}" data-scope="overview" aria-label="${esc(label(p))}">${inner}</button>`;
+    if (p.kind === "rest") return `<button class="flow-chip rest" data-action="goto-stats-cats" aria-label="${esc(label(p))}">${inner}</button>`;
+    return `<div class="flow-chip ${p.kind}" role="img" aria-label="${esc(label(p))}">${inner}</div>`;
+  };
+  return `<div class="flow">
+    <div class="flow-head"><span>${t("Einnahmen")}</span><b class="pos">${fmt0(T.income)}</b></div>
+    <div class="flow-track" role="img" aria-label="${esc(`${t("Einnahmen")}: ${fmt0(T.income)}`)}"><i class="income" style="width:${w(T.income)}"></i></div>
+    <div class="flow-head"><span>${t("Ausgaben")}${pending > 0 ? ` <small>· ${t("davon {amount} noch offen", { amount: fmt0(pending) })}</small>` : ""}</span><b>${fmt0(spent)}</b></div>
+    <div class="flow-track" role="img" aria-label="${esc(`${t("Ausgaben")}: ${parts.map(label).join(", ")}`)}">
+      ${parts.map((p) => `<i class="${p.cls}" style="width:${w(p.total)}"></i>`).join("")}
+    </div>
+    <div class="flow-chips">${parts.map(chip).join("")}</div>
+  </div>`;
 }
 
 // ------------------------------------------------------------------ Rückblick und Auffälligkeiten
