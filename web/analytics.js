@@ -22,7 +22,7 @@
     maxPerMonth: 2,        // höchstens 2× pro Monat (sonst eher Einkauf)
     maxAmountRatio: 1.3,   // Beträge schwanken höchstens um 30 %
   };
-  const PACE_PRIOR_DAYS = 10;  // wie stark die Vormonate die Prognose stützen
+  const PACE_MIN_DAYS = 7;     // Prognose im laufenden Monat: Ausgaben der ersten Tage auf mind. eine Woche verteilen
 
   // ------------------------------------------------------------ Hilfen
   const norm = (s) => String(s || "").toLowerCase().split(/\s+/).filter(Boolean).join(" ");
@@ -260,7 +260,10 @@
     const openFixedTotal = openFixed.reduce((s, x) => s + x.amount_cents, 0);
     const expectedIncomeTotal = expectedIncome.reduce((s, x) => s + x.amount_cents, 0);
 
-    // Tempo der variablen Ausgaben: aktueller Monat, gestützt durch die Vormonate.
+    // Tempo der variablen Ausgaben (ohne Fixkosten, ohne große Einzelausgaben).
+    // Laufender Monat: nur was in diesem Monat wirklich ausgegeben wurde, in der ersten Woche auf
+    // mindestens 7 Tage verteilt, damit ein Einkauf am 1. nicht gleich hochgerechnet wird.
+    // Künftiger Monat: Schnitt der letzten 3 Monate.
     const histMonths = [1, 2, 3].map((k) => addMonths(m, -k)).filter((x) => ctx.byMonth.has(x) && x < ctx.currentMonth);
     let histSpend = 0, histDays = 0;
     for (const hm of histMonths) { histSpend += monthTotals(hm, ctx).variable; histDays += daysIn(hm); }
@@ -268,8 +271,7 @@
     let pace;
     if (status === "past") pace = totals.variable / D;
     else if (elapsed === 0) pace = histDaily;
-    else if (!histDays) pace = totals.variable / elapsed;
-    else pace = (totals.variable + histDaily * PACE_PRIOR_DAYS) / (elapsed + PACE_PRIOR_DAYS);
+    else pace = totals.variable / Math.max(elapsed, PACE_MIN_DAYS);
 
     const budgetLeft = totals.net - openFixedTotal;
     const remaining = D - elapsed;                       // Tage nach heute
@@ -326,7 +328,7 @@
 
     return {
       month: m, status, days: D, elapsed, daysLeftIncl,
-      totals, openFixed, openFixedTotal, expectedIncome, expectedIncomeTotal,
+      totals, openFixed, openFixedTotal, expectedIncome, expectedIncomeTotal, histDaily,
       pace, budgetLeft, dailyBudget, forecastEnd, preview,
       series: { actual, forecast },
       byCategory: byCategory(list, ctx),

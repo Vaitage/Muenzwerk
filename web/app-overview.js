@@ -84,6 +84,7 @@ function viewOverview() {
     <h2>${r.status === "past" ? t("Verlauf im Monat") : t("Prognose Monatsende")}</h2>
     <div class="kpi"><span class="big2 ${r.forecastEnd >= 0 ? "pos" : "neg"}">${fmt(r.forecastEnd)}</span>
       <span class="sub">${r.status === "past" ? t("am Monatsende auf dem Konto geblieben") : t("bleiben voraussichtlich übrig")}</span></div>
+    ${r.status === "current" ? `<p class="note" style="margin:4px 0 0">${t("Hochgerechnet aus deinen Ausgaben in diesem Monat ohne Fixkosten: {amount}/Tag.", { amount: fmt0(r.pace) })}</p>` : ""}
     ${endPoint ? lineChart({
       id: "month",
       xs,

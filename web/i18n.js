@@ -312,6 +312,7 @@
     "Einkommen im Einzelnen anzeigen": "Show income in detail",
     "Regelmäßiges Einkommen": "Regular income",
     "Variables Einkommen": "Variable income",
+    "Hochgerechnet aus deinen Ausgaben in diesem Monat ohne Fixkosten: {amount}/Tag.": "Projected from what you have spent this month, excluding fixed costs: {amount}/day.",
     "noch {n} Tag": "{n} day left",
     "noch {n} Tage": "{n} days left",
     "Stand": "Balance",

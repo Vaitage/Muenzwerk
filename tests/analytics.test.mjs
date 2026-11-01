@@ -432,3 +432,21 @@ test("Beispiel: 200 € übrig, 10 Tage → 20, 40, 60 €", () => {
   const p = A.fillPreview([{ income: 0 }, { income: 0 }, { income: 0 }], 20000, 10);
   assert.deepEqual(p.map((x) => x.available), [2000, 4000, 6000]);
 });
+
+test("Prognose im laufenden Monat: nur eigene Ausgaben dieses Monats, erste Woche auf 7 Tage verteilt", () => {
+  const list = sample();                                   // Vormonate: 3 × 30 € REWE je Monat
+  list.push(tx("2026-10-30", 285000, "Muster GmbH", 4, "2026-11"));
+  const at = (today, extra = []) => A.monthReport("2026-11",
+    A.createContext({ transactions: [...list, ...extra], categories, settings: { large_expense_cents: 25000 }, today }));
+  // noch nichts ausgegeben → Prognose = Übrig
+  const r0 = at("2026-11-02");
+  assert.equal(r0.pace, 0);
+  assert.equal(r0.forecastEnd, r0.budgetLeft);
+  // 70 € am 2. → 10 €/Tag (auf 7 Tage verteilt), nicht 35 €/Tag
+  const r1 = at("2026-11-02", [tx("2026-11-02", -7000, "REWE", 2)]);
+  assert.equal(r1.pace, 1000);
+  assert.equal(r1.forecastEnd, Math.round(r1.budgetLeft - 1000 * 28));
+  // ab Tag 7 zählt der echte Schnitt
+  const r2 = at("2026-11-14", [tx("2026-11-02", -7000, "REWE", 2)]);
+  assert.equal(r2.pace, 500);
+});
