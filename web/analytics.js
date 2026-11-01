@@ -25,7 +25,9 @@
   const PACE_MIN_DAYS = 7;
   const BLEND_DAYS = 7;        // Prognose: dieser Monat zählt mit elapsed ÷ (elapsed + 7), der Rest kommt aus den Vormonaten
   const HIST_MONTHS = 6;       // so viele Vormonate lernt die Prognose
-  const LEARN_MIN_MONTHS = 3;  // ab so vielen Vormonaten: Spanne, „so läuft es sonst“, Rhythmus     // Prognose im laufenden Monat: Ausgaben der ersten Tage auf mind. eine Woche verteilen
+  const LEARN_MIN_MONTHS = 3;
+  const CHECK_DAYS = [5, 10, 15, 20, 25];   // an diesen Tagen prüft die Prognose sich selbst in den Vormonaten
+  const CALIB_MIN = 0.7, CALIB_MAX = 1.4;   // so weit darf der Ausgleich höchstens gehen  // ab so vielen Vormonaten: Spanne, „so läuft es sonst“, Rhythmus     // Prognose im laufenden Monat: Ausgaben der ersten Tage auf mind. eine Woche verteilen
 
   // ------------------------------------------------------------ Hilfen
   const norm = (s) => String(s || "").toLowerCase().split(/\s+/).filter(Boolean).join(" ");
@@ -61,6 +63,7 @@
       catMap,
       overrides,
       large: settings.large_expense_cents ?? 25000,
+      learn: settings.forecast_learning !== false,   // Prognose lernt aus Vormonaten und eigenen Fehlern
       todayIso: typeof today === "string" ? today : isoOf(today),
     };
     ctx.currentMonth = ctx.todayIso.slice(0, 7);
@@ -242,7 +245,7 @@
       cum[bm === mm ? Number(t.booking_date.slice(8, 10)) : bm < mm ? 1 : D] += -t.amount_cents;
     }
     for (let d = 1; d <= D; d++) cum[d] += cum[d - 1];
-    return { D, cum, total: cum[D] };
+    return { month: mm, D, cum, total: cum[D] };
   }
   // Bis zu HIST_MONTHS abgeschlossene Monate vor m; ein angebrochener erster Monat (Daten erst ab dem 6.) zählt nicht.
   function spendHistory(m, ctx) {
@@ -264,6 +267,35 @@
     const i = Math.floor(x);
     if (i >= h.D) return h.total;
     return h.cum[i] + (h.cum[i + 1] - h.cum[i]) * (x - i);
+  }
+  // Was die Prognose an Tag d für den Rest des Monats erwartet hätte (nur variable Ausgaben, wie in monthReport)
+  function predictRemaining(curve, d, hist) {
+    const cur = (curve.cum[d] / Math.max(d, PACE_MIN_DAYS)) * (curve.D - d);
+    if (!hist.length) return cur;
+    const w = d / (d + BLEND_DAYS);
+    return w * cur + (1 - w) * median(hist.map((x) => Math.max(0, x.total - cumAt(x, d, curve.D))));
+  }
+  // Lernt aus eigenen Fehlern: für die abgeschlossenen Vormonate rückwirkend durchrechnen, was die Prognose am
+  // 5., 10., 15., 20. und 25. erwartet hätte, und mit dem vergleichen, was danach wirklich ausgegeben wurde.
+  // factor = tatsächlich ÷ erwartet (0,7–1,4) gleicht eine dauerhafte Schieflage aus; bias = typische Abweichung
+  // (Median, Cent; > 0: zu viel erwartet, Prognose war zu pessimistisch).
+  function calibration(ctx) {
+    if (ctx._calib !== undefined) return ctx._calib;
+    let pred = 0, act = 0;
+    const diffs = [];
+    const tested = spendHistory(ctx.currentMonth, ctx);
+    for (const curve of tested) {
+      const hist = spendHistory(curve.month, ctx);
+      for (const d of CHECK_DAYS) {
+        const p = predictRemaining(curve, Math.min(d, curve.D), hist);
+        const a = curve.total - curve.cum[Math.min(d, curve.D)];
+        pred += p; act += a; diffs.push(p - a);
+      }
+    }
+    ctx._calib = tested.length >= LEARN_MIN_MONTHS && pred > 0
+      ? { factor: Math.min(CALIB_MAX, Math.max(CALIB_MIN, act / pred)), bias: median(diffs), months: tested.length }
+      : null;
+    return ctx._calib;
   }
   function quantile(arr, q) {
     const s = [...arr].sort((a, b) => a - b);
@@ -316,7 +348,9 @@
     // Mischung: dieser Monat zählt mit elapsed ÷ (elapsed + 7) – am 1. wenig, am 15. rund 70 %.
     const dayNow = status === "current" ? elapsed : 0;     // bis einschl. dieses Tages gebucht
     const remDays = D - dayNow;
-    const hist = status === "past" ? [] : spendHistory(m, ctx);
+    const hist = status === "past" || !ctx.learn ? [] : spendHistory(m, ctx);
+    const calib = status === "past" || !ctx.learn ? null : calibration(ctx);
+    const corr = calib ? calib.factor : 1;
     const learned = hist.length >= LEARN_MIN_MONTHS;
     let pace;
     if (status === "past") pace = totals.variable / D;
@@ -326,12 +360,12 @@
     const histRems = hist.map((h) => Math.max(0, h.total - cumAt(h, dayNow, D)));
     const weight = status === "past" ? 1 : !hist.length ? (status === "current" ? 1 : 0) : elapsed / (elapsed + BLEND_DAYS);
     const histRem = hist.length ? median(histRems) : 0;
-    const remaining = status === "past" ? 0 : weight * curRem + (1 - weight) * histRem;
+    const remaining = status === "past" ? 0 : (weight * curRem + (1 - weight) * histRem) * corr;
     const forecastEnd = status === "past" ? totals.net : Math.round(budgetLeft + expectedIncomeTotal - remaining);
     // Spanne: wie stark die Vormonate ab hier schwankten (mittlere 60 %), mindestens 10 % des Rests;
     // ohne genug Vormonate pauschal ±25 %
     const spread = status === "past" ? 0 : learned
-      ? Math.max((quantile(histRems, 0.8) - quantile(histRems, 0.2)) / 2, remaining * 0.1)
+      ? Math.max(((quantile(histRems, 0.8) - quantile(histRems, 0.2)) / 2) * corr, remaining * 0.1)
       : remaining * 0.25;
     const forecastLow = Math.round(forecastEnd - spread);
     const forecastHigh = Math.round(forecastEnd + spread);
@@ -407,7 +441,7 @@
       month: m, status, days: D, elapsed, daysLeftIncl,
       totals, openFixed, openFixedTotal, expectedIncome, expectedIncomeTotal,
       pace, remaining, remainingDaily: remDays > 0 ? remaining / remDays : 0, weight, learnedMonths: hist.length,
-      firstHalfShare, outlook, budgetLeft, dailyBudget, forecastEnd, forecastLow, forecastHigh, preview,
+      firstHalfShare, outlook, learning: ctx.learn, calibration: calib, budgetLeft, dailyBudget, forecastEnd, forecastLow, forecastHigh, preview,
       series: { actual, forecast, typical },
       byCategory: byCategory(list, ctx),
     };

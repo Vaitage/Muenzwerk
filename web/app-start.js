@@ -177,6 +177,11 @@ document.addEventListener("change", async (e) => {
     try { pushInfo = await API.pushSettings({ show_amount: pa.checked }); } catch (err) { toast(err.message); pa.checked = !pa.checked; }
     return;
   }
+  const fl = e.target.closest("[data-forecast-learn]");
+  if (fl) {
+    try { await API.updateSettings({ forecast_learning: fl.checked }); } catch (err) { toast(err.message); fl.checked = !fl.checked; return; }
+    return reload();
+  }
   const imp = e.target.closest("[data-import-file]");
   if (imp) return importFile(imp);
   if (e.target.closest(".sheet")) return;

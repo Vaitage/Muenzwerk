@@ -460,6 +460,28 @@ test("Prognose lernt aus den Vormonaten und mischt mit dem laufenden Monat", () 
   assert.equal(r2.series.typical.length, 30);
 });
 
+test("Prognose lernt aus eigenen Fehlern und lässt sich abschalten", () => {
+  // Vormonate: am Monatsanfang viel (60 € am 2.), danach wenig (10 € am 20.) → reines Tempo erwartet zu viel
+  const list = [];
+  for (const m of ["2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10"]) {
+    list.push(tx(`${m}-01`, 285000, "Muster GmbH", 4), tx(`${m}-02`, -6000, "REWE", 2), tx(`${m}-20`, -1000, "REWE", 2));
+  }
+  list.push(tx("2026-11-01", 285000, "Muster GmbH", 4), tx("2026-11-02", -6000, "REWE", 2));
+  const at = (settings) => A.monthReport("2026-11", A.createContext({ transactions: list, categories, settings, today: "2026-11-10" }));
+  const on = at({});
+  assert.equal(on.learning, true);
+  assert.ok(on.calibration && on.calibration.months >= 3);
+  assert.ok(on.calibration.factor < 1);            // hat zuletzt zu viel erwartet → weniger abziehen
+  assert.ok(on.calibration.bias > 0);              // „lag zu tief“
+  const off = at({ forecast_learning: false });
+  assert.equal(off.learning, false);
+  assert.equal(off.calibration, null);
+  assert.equal(off.learnedMonths, 0);
+  assert.equal(off.series.typical.length, 0);
+  assert.equal(off.forecastEnd, Math.round(off.budgetLeft - (6000 / 10) * 20));   // nur das Tempo dieses Monats
+  assert.ok(on.forecastEnd > off.forecastEnd);
+});
+
 test("Prognose ohne Vormonate: nur das Tempo dieses Monats", () => {
   const list = [tx("2026-11-01", 285000, "Muster GmbH", 4), tx("2026-11-02", -7000, "REWE", 2)];
   const r = A.monthReport("2026-11", A.createContext({ transactions: list, categories, settings: {}, today: "2026-11-02" }));

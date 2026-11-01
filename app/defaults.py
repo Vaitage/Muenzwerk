@@ -118,6 +118,8 @@ DEFAULT_SETTINGS = {
     "large_expense_cents": "25000",
     # Monatsrückblick auf der Übersicht: so viele Tage ab Monatsanfang sichtbar (0 = aus)
     "review_days": "3",
+    # Prognose lernt aus den Vormonaten und gleicht eigene Fehler aus (1) oder rechnet nur mit diesem Monat (0)
+    "forecast_learning": "1",
     # Weggeklickte Hinweise (Rückblick, Auffälligkeiten) als JSON-Liste ihrer Kennungen
     "dismissed_hints": "[]",
 }

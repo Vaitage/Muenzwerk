@@ -235,6 +235,8 @@ def test_rueckblick_und_weggeklickte_hinweise(tmp_path, monkeypatch):
         assert s["review_days"] == 3 and s["dismissed_hints"] == []
         assert client.patch("/api/settings", headers=h, json={"review_days": 0}).json()["review_days"] == 0
         assert client.patch("/api/settings", headers=h, json={"review_days": 8}).status_code == 422
+        assert s["forecast_learning"] is True
+        assert client.patch("/api/settings", headers=h, json={"forecast_learning": False}).json()["forecast_learning"] is False
         for hint in ("review:2026-10", "dup:a:b", "review:2026-10"):
             s = client.patch("/api/settings", headers=h, json={"dismiss_hint": hint}).json()
         assert s["dismissed_hints"] == ["dup:a:b", "review:2026-10"]

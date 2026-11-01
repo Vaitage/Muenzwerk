@@ -99,6 +99,10 @@ function viewSettings() {
         <div class="grow"><div>${t("Monatsrückblick")}</div><div class="hint">${t("Zum Monatsanfang auf der Übersicht: was übrig blieb, größte Ausgabe, Vergleich zum Vormonat. Lässt sich wegklicken.")}</div></div>
         <div class="stepper"><button data-review="-1" aria-label="${t("weniger")}">−</button><span style="min-width:62px">${settings.review_days ? tn(settings.review_days, "{n} Tag", "{n} Tage") : t("aus")}</span><button data-review="1" aria-label="${t("mehr")}">+</button></div>
       </div>
+      <div class="row">
+        <div class="grow"><div>${t("Prognose lernt mit")}</div><div class="hint">${t("An: lernt aus deinen letzten 6 Monaten, wie du über den Monat ausgibst, und gleicht aus, wo sie zuletzt danebenlag. Aus: rechnet nur mit deinen Ausgaben in diesem Monat.")}</div></div>
+        <label class="switch"><input type="checkbox" data-forecast-learn aria-label="${t("Prognose lernt mit")}" ${settings.forecast_learning !== false ? "checked" : ""}><span></span></label>
+      </div>
     </section>
 
     <section class="card nav-card">

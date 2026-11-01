@@ -181,13 +181,20 @@ function forecastCard(r) {
 
   // Was die Prognose gelernt hat
   let learn = "";
-  if (!past) {
+  if (!past && !r.learning) {
+    learn = t("Lernen ist aus: gerechnet wird nur mit deinen Ausgaben in diesem Monat.");
+  } else if (!past) {
     if (r.learnedMonths >= 3) {
       const share = r.firstHalfShare;
       const rhythm = share == null ? "" : share > 0.58 ? t("In der ersten Monatshälfte gibst du meist mehr aus als danach.")
         : share < 0.42 ? t("In der zweiten Monatshälfte gibst du meist mehr aus.") : t("Deine Ausgaben verteilen sich recht gleichmäßig über den Monat.");
       learn = `${t("Gelernt aus {n} Monaten:", { n: r.learnedMonths })} ${rhythm}`
         + (r.status === "current" ? " " + t("Dieser Monat zählt schon zu {p} %.", { p: Math.round(r.weight * 100) }) : "");
+      // Aus eigenen Fehlern gelernt (rückwirkend in den Vormonaten geprüft)
+      const c = r.calibration;
+      if (c && Math.abs(c.bias) >= 1000) {
+        learn += " " + t(c.bias > 0 ? "Sie lag zuletzt meist {amount} zu tief und gleicht das jetzt aus." : "Sie lag zuletzt meist {amount} zu hoch und gleicht das jetzt aus.", { amount: fmt0(Math.abs(c.bias)) });
+      } else if (c) learn += " " + t("Sie lag in den letzten Monaten meist richtig.");
     } else if (r.status === "current") {
       learn = t("Noch zu wenige Vormonate zum Lernen – gerechnet wird mit deinen Ausgaben in diesem Monat.");
     }

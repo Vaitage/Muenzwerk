@@ -16,7 +16,7 @@ window.API = (() => {
   const cats = D.categories.map((c) => ({ ...c, name: I18N.t(c.name) }));
   const rules = D.rules.map((r) => ({ ...r }));
   const setup = { appId: "", bank: "ING", country: "DE" };
-  const settings = { shift_from_day: 15, large_expense_cents: 25000, review_days: 3, dismissed_hints: [] };
+  const settings = { shift_from_day: 15, large_expense_cents: 25000, review_days: 3, forecast_learning: true, dismissed_hints: [] };
   const overrides = new Map();
   let nextAcc = 100, nextVal = 1000;
   const accounts = (D.accounts || []).map((a) => ({ ...a, values: a.values.map((v) => ({ ...v })) }));
