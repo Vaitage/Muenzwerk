@@ -424,4 +424,11 @@ test("3-Tage-Vorschau: (Einnahmen − Abgebuchtes − offene Fixkosten) ÷ Restt
   const perDay = r.budgetLeft / 30;
   assert.equal(r.budgetLeft, 285000 - 85000);            // Gehalt minus Miete (noch offen)
   assert.deepEqual(r.preview.map((p) => Math.round(p.daily)), [perDay, perDay, perDay].map(Math.round));
+  // angezeigt wird, was bis zu dem Tag zusammen frei ist: 1×, 2×, 3× das Tagesbudget
+  assert.deepEqual(r.preview.map((p) => Math.round(p.available)), [1, 2, 3].map((k) => Math.round(perDay * k)));
+});
+
+test("Beispiel: 200 € übrig, 10 Tage → 20, 40, 60 €", () => {
+  const p = A.fillPreview([{ income: 0 }, { income: 0 }, { income: 0 }], 20000, 10);
+  assert.deepEqual(p.map((x) => x.available), [2000, 4000, 6000]);
 });

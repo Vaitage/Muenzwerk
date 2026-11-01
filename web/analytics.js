@@ -218,6 +218,15 @@
   // Tagesbudget k Tage nach heute (siehe Vorschau in monthReport)
   const previewDaily = (budgetLeft, daysLeftIncl, k, income = 0) =>
     budgetLeft / daysLeftIncl + income / Math.max(1, daysLeftIncl - k);
+  // Beispiel: 200 € übrig, 10 Tage → heute 20 €, morgen 40 €, übermorgen 60 € (zusammen frei bis dahin)
+  function fillPreview(preview, budgetLeft, daysLeftIncl) {
+    let sum = 0;
+    return preview.map((p, k) => {
+      const daily = previewDaily(budgetLeft, daysLeftIncl, k, p.income);
+      sum += daily;
+      return { ...p, daily, available: sum };
+    });
+  }
 
   // ------------------------------------------------------------ Monatsbericht
   function monthReport(m, ctx) {
@@ -268,10 +277,10 @@
     const dailyBudget = daysLeftIncl > 0 ? budgetLeft / daysLeftIncl : null;
     const forecastEnd = status === "past" ? totals.net : Math.round(budgetLeft + expectedIncomeTotal - pace * remaining);
 
-    // Vorschau: Tagesbudget heute, morgen, übermorgen:
-    // (Einnahmen − Abgebuchtes − noch offene Fixkosten) ÷ Tage bis Monatsende. Wer jeden Tag genau sein
-    // Tagesbudget ausgibt, hat morgen dasselbe; nur erwartete Einnahmen bis dahin heben es an.
-    const preview = [];
+    // Vorschau heute, morgen, übermorgen: Tagesbudget = (Einnahmen − Abgebuchtes − noch offene Fixkosten)
+    // ÷ Tage bis Monatsende (erwartete Einnahmen bis dahin heben es an). Angezeigt wird, was bis zu diesem
+    // Tag zusammen frei ist, wenn bis dahin nichts ausgegeben wird (`available`, siehe fillPreview).
+    let preview = [];
     if (status === "current") {
       for (let k = 0; k < 3 && ctx.todayDay + k <= D; k++) {
         const day = ctx.todayDay + k;
@@ -280,11 +289,11 @@
           day,
           iso: `${m}-${pad(day)}`,
           income,
-          daily: previewDaily(budgetLeft, daysLeftIncl, k, income),
           due: openFixed.filter((x) => x.day === day),
           incoming: expectedIncome.filter((x) => x.day === day),
         });
       }
+      preview = fillPreview(preview, budgetLeft, daysLeftIncl);
     }
 
     // Verlauf im Monat (was auf dem Konto übrig ist) und Prognose bis Monatsende.
@@ -943,7 +952,7 @@
 
   return {
     RECURRING, norm, addMonths, daysIn, isoOf, ibanKey, spendDays, heatMonth, heatYear, goalsReport,
-    createContext, classify, recurringKey, totalsFor, monthTotals, monthReport, previewDaily, stats, cumulative, recurringList,
+    createContext, classify, recurringKey, totalsFor, monthTotals, monthReport, previewDaily, fillPreview, stats, cumulative, recurringList,
     savingsOverview, counterpartyKey, suggestCategory, anomalies, monthReview,
     linkedTransfers, accountValueAt, loanInfo, wealth, searchTransactions,
   };

@@ -12,7 +12,7 @@ function withGoals(r) {
     ...r,
     goalPlanned: planned,
     budgetLeft: r.budgetLeft - planned,
-    preview: r.preview.map((p, k) => ({ ...p, daily: A.previewDaily(r.budgetLeft - planned, r.daysLeftIncl, k, p.income) })),
+    preview: A.fillPreview(r.preview, r.budgetLeft - planned, r.daysLeftIncl),
   };
 }
 
@@ -49,7 +49,7 @@ function viewOverview() {
           const name = i === 0 ? t("Heute") : `${WEEKDAYS[d.getDay()]} ${ord(d.getDate())}`;
           return `<div class="day3 ${i === 0 ? "now" : ""}">
             <div class="k">${name}</div>
-            <div class="v ${p.daily >= 0 ? "" : "neg"}">${i === 0 ? fmt(p.daily) : fmt0(p.daily)}</div>
+            <div class="v ${p.available >= 0 ? "" : "neg"}">${i === 0 ? fmt(p.available) : fmt0(p.available)}</div>
             ${p.due.map((x) => `<div class="due">${esc(x.name)} −${fmt0(x.amount_cents)}</div>`).join("")}
             ${p.incoming.map((x) => `<div class="due in">${esc(x.name)} +${fmt0(x.amount_cents)}</div>`).join("")}
           </div>`;

@@ -5,7 +5,7 @@
 
 // Version dieser App-Dateien (gleich wie __version__ in app/__init__.py). Weicht die
 // Version des Servers ab, zeigt das Handy noch eine zwischengespeicherte Fassung.
-const APP_VERSION = "1.21.0";
+const APP_VERSION = "1.21.1";
 const A = window.Analytics;
 const { t, tn, ord, locale } = window.I18N;
 
@@ -113,7 +113,7 @@ function widgetSnapshot() {
     forecast_end_cents: Math.round(r.forecastEnd),
     days_left: r.daysLeftIncl,
     pending_cents: pending,
-    days: r.preview.map((p) => ({ date: p.iso, daily_cents: Math.round(p.daily) })),
+    days: r.preview.map((p) => ({ date: p.iso, daily_cents: Math.round(p.available) })),   // bis dahin zusammen frei
     next_fixed: [...r.openFixed].sort((a, b) => a.day - b.day).slice(0, 3)
       .map((x) => ({ name: String(x.name).slice(0, 80), amount_cents: Math.abs(Math.round(x.amount_cents)), day: x.day })),
   };
