@@ -17,6 +17,11 @@ function withGoals(r) {
     forecastEnd: r.forecastEnd - planned,
     forecastLow: r.forecastLow - planned,
     forecastHigh: r.forecastHigh - planned,
+    // Status nach der Verschiebung neu, sonst stünde „Knapp“ über einer Prognose im Minus
+    outlook: !r.outlook ? r.outlook
+      : r.forecastEnd - planned < 0 ? "minus"
+      : r.outlook === "early" ? "early"
+      : r.forecastLow - planned < 0 ? "tight" : "ok",
     series: {
       actual: r.series.actual.map((p) => ({ ...p, value: p.value - planned })),
       forecast: r.series.forecast.map((p) => ({ ...p, value: p.value - planned, lo: p.lo - planned, hi: p.hi - planned })),

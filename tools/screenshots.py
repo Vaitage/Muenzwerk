@@ -1,11 +1,14 @@
 """Macht die Bilder für die README aus der Vorschau (dist/demo.html).
 
-Aufruf:  python tools/build_demo.py && python tools/screenshots.py [en|de]
+Aufruf:  python tools/screenshots.py [en|de]
          en -> docs/images/ (README.md), de -> docs/bilder/ (README.de.md)
-Braucht:  pip install playwright && python -m playwright install chromium
+Braucht:  pip install playwright time-machine && python -m playwright install chromium
+Baut die Vorschau dafür selbst – an einem 17. (siehe FAKE_NOW) – und danach wieder mit dem echten Datum.
 """
 import asyncio
+import datetime as dt
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -15,6 +18,17 @@ ROOT = Path(__file__).resolve().parent.parent
 DEMO = (ROOT / "dist" / "demo.html").as_uri()
 # Chromium-Pfad: Standard von Playwright, sonst per Umgebungsvariable CHROMIUM
 CHROMIUM = os.environ.get("CHROMIUM")
+# Bilder immer an einem 17. um 10:15: Monat halb vorbei, Prognose und Kalender haben etwas zu zeigen,
+# der Monatsrückblick (nur die ersten Tage) ist weg. Demo-Daten (build_demo.py) und Browser-Uhr nutzen diesen Tag.
+FAKE_NOW = dt.datetime.now().replace(day=17, hour=10, minute=15, second=0, microsecond=0)
+
+
+def build_demo(at=None):
+    script = str(ROOT / "tools" / "build_demo.py")
+    code = f"import runpy; runpy.run_path({script!r}, run_name='__main__')"
+    if at:
+        code = f"import time_machine; time_machine.travel({at.isoformat()!r}, tick=False).start(); " + code
+    subprocess.run([sys.executable, "-c", code], check=True, stdout=subprocess.DEVNULL)
 
 LANG = (sys.argv[1] if len(sys.argv) > 1 else "en").lower()
 OUT = ROOT / "docs" / ("bilder" if LANG == "de" else "images")
@@ -31,11 +45,13 @@ NAMES = {
 
 async def main():
     OUT.mkdir(parents=True, exist_ok=True)
+    build_demo(FAKE_NOW)
     async with async_playwright() as p:
         b = await p.chromium.launch(executable_path=CHROMIUM) if CHROMIUM else await p.chromium.launch()
         opts = dict(viewport={"width": 390, "height": 844}, device_scale_factor=2, is_mobile=True, has_touch=True, locale=LOCALE)
         ctx = await b.new_context(color_scheme="dark", **opts)
         page = await ctx.new_page()
+        await page.clock.set_fixed_time(FAKE_NOW)
         errs = []
         page.on("pageerror", lambda e: errs.append(str(e)))
         await page.goto(DEMO)
@@ -72,6 +88,7 @@ async def main():
         # heller Modus
         ctx2 = await b.new_context(color_scheme="light", **opts)
         p2 = await ctx2.new_page()
+        await p2.clock.set_fixed_time(FAKE_NOW)
         await p2.goto(DEMO)
         await p2.wait_for_timeout(3200)
         await p2.evaluate(hide_banner)
@@ -98,4 +115,8 @@ async def main():
         print(OUT, errs or "ohne Fehler")
         await b.close()
 
-asyncio.run(main())
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    finally:
+        build_demo()   # Vorschau wieder mit dem echten Datum
