@@ -12,7 +12,7 @@ function withGoals(r) {
     ...r,
     goalPlanned: planned,
     budgetLeft: r.budgetLeft - planned,
-    preview: r.preview.map((p, k) => ({ ...p, daily: p.daily - planned / Math.max(1, r.daysLeftIncl - k) })),
+    preview: r.preview.map((p, k) => ({ ...p, daily: A.previewDaily(r.budgetLeft - planned, r.daysLeftIncl, k, p.income) })),
   };
 }
 

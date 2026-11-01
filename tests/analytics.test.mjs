@@ -415,3 +415,13 @@ test("Eine fremde Zahlung mit gleichem Betrag deckt keine Fixkosten", () => {
   const ctx = A.createContext({ transactions: list, categories, settings: { large_expense_cents: 25000 }, today: "2026-11-01" });
   assert.ok(A.monthReport("2026-11", ctx).openFixed.some((x) => x.name === "Hausverwaltung"));
 });
+
+test("3-Tage-Vorschau: (Einnahmen − Abgebuchtes − offene Fixkosten) ÷ Resttage, gleichbleibend", () => {
+  const list = sample();
+  list.push(tx("2026-10-30", 285000, "Muster GmbH", 4, "2026-11"));
+  const ctx = A.createContext({ transactions: list, categories, settings: { large_expense_cents: 25000 }, today: "2026-11-01" });
+  const r = A.monthReport("2026-11", ctx);
+  const perDay = r.budgetLeft / 30;
+  assert.equal(r.budgetLeft, 285000 - 85000);            // Gehalt minus Miete (noch offen)
+  assert.deepEqual(r.preview.map((p) => Math.round(p.daily)), [perDay, perDay, perDay].map(Math.round));
+});

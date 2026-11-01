@@ -215,6 +215,10 @@
     };
   }
 
+  // Tagesbudget k Tage nach heute (siehe Vorschau in monthReport)
+  const previewDaily = (budgetLeft, daysLeftIncl, k, income = 0) =>
+    budgetLeft / daysLeftIncl + income / Math.max(1, daysLeftIncl - k);
+
   // ------------------------------------------------------------ Monatsbericht
   function monthReport(m, ctx) {
     const list = ctx.byMonth.get(m) || [];
@@ -264,7 +268,9 @@
     const dailyBudget = daysLeftIncl > 0 ? budgetLeft / daysLeftIncl : null;
     const forecastEnd = status === "past" ? totals.net : Math.round(budgetLeft + expectedIncomeTotal - pace * remaining);
 
-    // Vorschau: Tagesbudget heute, morgen, übermorgen – wenn du so weiter ausgibst wie bisher.
+    // Vorschau: Tagesbudget heute, morgen, übermorgen:
+    // (Einnahmen − Abgebuchtes − noch offene Fixkosten) ÷ Tage bis Monatsende. Wer jeden Tag genau sein
+    // Tagesbudget ausgibt, hat morgen dasselbe; nur erwartete Einnahmen bis dahin heben es an.
     const preview = [];
     if (status === "current") {
       for (let k = 0; k < 3 && ctx.todayDay + k <= D; k++) {
@@ -273,7 +279,8 @@
         preview.push({
           day,
           iso: `${m}-${pad(day)}`,
-          daily: (budgetLeft + income - pace * k) / (daysLeftIncl - k),
+          income,
+          daily: previewDaily(budgetLeft, daysLeftIncl, k, income),
           due: openFixed.filter((x) => x.day === day),
           incoming: expectedIncome.filter((x) => x.day === day),
         });
@@ -936,7 +943,7 @@
 
   return {
     RECURRING, norm, addMonths, daysIn, isoOf, ibanKey, spendDays, heatMonth, heatYear, goalsReport,
-    createContext, classify, recurringKey, totalsFor, monthTotals, monthReport, stats, cumulative, recurringList,
+    createContext, classify, recurringKey, totalsFor, monthTotals, monthReport, previewDaily, stats, cumulative, recurringList,
     savingsOverview, counterpartyKey, suggestCategory, anomalies, monthReview,
     linkedTransfers, accountValueAt, loanInfo, wealth, searchTransactions,
   };
