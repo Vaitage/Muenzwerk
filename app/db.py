@@ -74,6 +74,15 @@ CREATE TABLE IF NOT EXISTS accounts (
 
 -- Kontostände zu einem Stichtag (von Hand eingetragen oder von der Bank).
 -- Bei Krediten ist das die Restschuld als positiver Betrag.
+-- Sondertilgungen eines Kredits (zusätzlich zur Monatsrate), Restschuld sinkt ab diesem Tag
+CREATE TABLE IF NOT EXISTS loan_extra_payments (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_id   INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    date         TEXT NOT NULL,
+    amount_cents INTEGER NOT NULL,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS account_values (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     account_id   INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,

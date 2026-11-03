@@ -130,6 +130,27 @@ test("Kredit: Tilgungsplan vor und zurück, Ende absehbar", () => {
   assert.equal(info.progress, 0.5);
 });
 
+test("Kredit: Sondertilgung senkt die Restschuld ab ihrem Monat und spart Zinsen", () => {
+  const acc = { type: "loan", loan_rate_percent: 6, loan_payment_cents: 50000, values: [{ date: "2026-10-01", value_cents: 1000000 }],
+    extra_payments: [{ id: 1, date: "2026-10-20", amount_cents: 100000 }] };
+  // im Oktober direkt 1.000 € weniger, im November danach Zins und Rate auf den kleineren Betrag
+  assert.equal(A.accountValueAt(acc, "2026-10-25", []).value, 900000);
+  assert.equal(A.accountValueAt(acc, "2026-11-01", []).value, Math.round(900000 * 1.005 - 50000));
+  // vor der Sondertilgung zählt sie nicht
+  assert.equal(A.accountValueAt(acc, "2026-10-10", []).value, 1000000);
+  // war sie vor dem eingetragenen Stand, steckt sie schon darin
+  const older = { ...acc, extra_payments: [{ id: 2, date: "2026-09-20", amount_cents: 100000 }] };
+  assert.equal(A.accountValueAt(older, "2026-10-25", []).value, 1000000);
+  // am Tag des Stands eingetragen: zählt (erst Stand, dann Sondertilgung)
+  const same = { ...acc, extra_payments: [{ id: 3, date: "2026-10-01", amount_cents: 50000 }] };
+  assert.equal(A.accountValueAt(same, "2026-10-01", []).value, 950000);
+  // Auswertung: früher fertig, Zinsen gespart
+  const w = A.wealth(A.createContext({ transactions: [], categories: [], today: "2026-11-03" }), [acc]).items[0];
+  assert.equal(w.loan.extra.total, 100000);
+  assert.ok(w.loan.extra.monthsEarlier >= 2);
+  assert.ok(w.loan.extra.interestSaved > 0);
+});
+
 test("Depot: Wertentwicklung ohne Einzahlungen, Nettovermögen", () => {
   const txs = [wtx("2026-09-03", -15000, "ING-DiBa AG", "Sparplan Direkt-Depot"), wtx("2026-10-01", 100000, "Gehalt", "")];
   const depot = { id: 1, type: "depot", match: "direkt-depot", include_in_total: true, values: [{ date: "2026-08-31", value_cents: 1000000 }, { date: "2026-10-10", value_cents: 1060000 }] };

@@ -618,12 +618,24 @@
   // Was ein Umsatz für das Konto bedeutet: aufs Sparkonto überwiesen = mehr drauf.
   const flowOf = (acc, t) => (acc.type === "giro" ? t.amount_cents : -t.amount_cents);
 
-  function loanStep(bal, acc, months) {
+  // Restschuld am Tag iso, ausgehend vom eingetragenen Stand: Monat für Monat Zins und Rate, dazu Sondertilgungen
+  // ab dem Tag des Stands in ihrem Monat (davor stecken sie schon im eingetragenen Betrag; am selben Tag gilt:
+  // erst der Stand, dann die Sondertilgung – so wie man sie meist nachträgt). Rückwärts genauso.
+  function loanValueAt(acc, snap, iso) {
     const r = (acc.loan_rate_percent || 0) / 100 / 12;
     const pay = acc.loan_payment_cents || 0;
-    let b = bal;
-    if (months > 0) for (let i = 0; i < months; i++) b = Math.max(0, b * (1 + r) - pay);
-    else for (let i = 0; i < -months; i++) b = (b + pay) / (1 + r);
+    const extras = acc.extra_payments || [];
+    const sum = (k, lo, hi, loIncl) => extras.filter((x) => monthIdx(x.date) === k && (loIncl ? x.date >= lo : x.date > lo) && (loIncl ? x.date <= hi : x.date < hi))
+      .reduce((s, x) => s + x.amount_cents, 0);
+    const from = monthIdx(snap.date), to = monthIdx(iso);
+    let b = snap.value_cents;
+    if (to >= from) {
+      b = Math.max(0, b - sum(from, snap.date, iso, true));
+      for (let k = from + 1; k <= to; k++) b = Math.max(0, b * (1 + r) - pay - sum(k, snap.date, iso, true));
+    } else {
+      b += sum(from, iso, snap.date);
+      for (let k = from - 1; k >= to; k--) b = (b + pay) / (1 + r) + sum(k, iso, snap.date);
+    }
     return Math.round(b);
   }
 
@@ -634,7 +646,7 @@
     for (const v of values) if (v.date <= iso) snap = v;
     const exact = snap && snap.date === iso;
     if (!snap) snap = values[0];
-    if (acc.type === "loan") return { value: loanStep(snap.value_cents, acc, monthIdx(iso) - monthIdx(snap.date)), estimated: !exact, snapDate: snap.date };
+    if (acc.type === "loan") return { value: loanValueAt(acc, snap, iso), estimated: !exact, snapDate: snap.date };
     let v = snap.value_cents;
     // Vorgemerkte Umsätze stecken nicht im gebuchten Stand der Bank. Beim
     // Girokonto zählen die fälligen trotzdem mit – so wie in der Banking-App.
@@ -710,6 +722,20 @@
       }
       if (acc.type === "loan" && cur) {
         item.loan = loanInfo(acc, cur.value, today);
+        // Sondertilgungen nach dem letzten eingetragenen Stand: was sie bisher gebracht haben (gegenüber ohne)
+        const extras = (acc.extra_payments || []).filter((x) => x.date >= cur.snapDate && x.date <= today);
+        if (extras.length) {
+          const base = accountValueAt({ ...acc, extra_payments: [] }, today, tx).value;
+          const without = loanInfo(acc, base, today);
+          const paid = extras.reduce((s, x) => s + x.amount_cents, 0);
+          item.loan.extra = {
+            total: paid,
+            monthsEarlier: without.months != null && item.loan.months != null ? without.months - item.loan.months : null,
+            // gesparte Zinsen = künftig weniger Zinsen + seit der Sondertilgung schon weniger angefallen
+            interestSaved: without.interestLeft != null && item.loan.interestLeft != null
+              ? Math.round(without.interestLeft - item.loan.interestLeft + (base - cur.value - paid)) : null,
+          };
+        }
         // Rate in diesem Monat schon abgebucht? (Überweisungen, die zum Kredit passen)
         if (acc.match) {
           const outs = linked.filter((t) => t.amount_cents < 0 && !t.pending);

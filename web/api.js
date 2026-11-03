@@ -44,6 +44,8 @@ window.API = (() => {
     deleteAccount: (id) => req("DELETE", `/api/accounts/${id}`),
     addAccountValue: (id, data) => req("POST", `/api/accounts/${id}/values`, data),
     deleteAccountValue: (id, valueId) => req("DELETE", `/api/accounts/${id}/values/${valueId}`),
+    addExtraPayment: (id, data) => req("POST", `/api/accounts/${id}/extra`, data),
+    deleteExtraPayment: (id, extraId) => req("DELETE", `/api/accounts/${id}/extra/${extraId}`),
     rules: () => req("GET", "/api/rules"),
     deleteRule: (id) => req("DELETE", `/api/rules/${id}`),
     transactions: (params = {}) => req("GET", `/api/transactions${q(params)}`),

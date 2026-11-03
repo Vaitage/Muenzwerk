@@ -53,6 +53,11 @@ class AccountPatch(BaseModel):
     loan_original_cents: int | None = Field(default=None, ge=0, le=MAX_CENTS)
 
 
+class ExtraIn(BaseModel):
+    amount_cents: int = Field(gt=0, le=MAX_CENTS)
+    date: str | None = Field(default=None, pattern=DATE)
+
+
 class ValueIn(BaseModel):
     value_cents: int = Field(ge=-MAX_CENTS, le=MAX_CENTS)
     date: str | None = Field(default=None, pattern=DATE)
@@ -76,6 +81,10 @@ def _account(conn: sqlite3.Connection, row) -> dict:
         "loan_payment_cents": row["loan_payment_cents"],
         "loan_original_cents": row["loan_original_cents"],
         "values": [dict(v) for v in values],
+        "extra_payments": [dict(x) for x in conn.execute(
+            "SELECT id, date, amount_cents FROM loan_extra_payments WHERE account_id = ? ORDER BY date, id",
+            (row["id"],),
+        ).fetchall()],
     }
 
 
@@ -182,6 +191,26 @@ def add_value(acc_id: int, body: ValueIn, conn=Depends(get_db)):
         (acc_id, body.date or date.today().isoformat(), value),
     )
     return {"ok": True}
+
+
+@router.post("/{acc_id}/extra", status_code=201)
+def add_extra_payment(acc_id: int, body: ExtraIn, conn=Depends(get_db)):
+    """Sondertilgung: wird protokolliert und zieht die Restschuld ab diesem Tag herunter."""
+    acc = conn.execute("SELECT type FROM accounts WHERE id = ?", (acc_id,)).fetchone()
+    if acc is None:
+        raise HTTPException(404)
+    if acc["type"] != "loan":
+        raise HTTPException(400, "Sondertilgung gibt es nur bei Krediten")
+    cur = conn.execute(
+        "INSERT INTO loan_extra_payments (account_id, date, amount_cents) VALUES (?, ?, ?)",
+        (acc_id, body.date or date.today().isoformat(), body.amount_cents),
+    )
+    return {"id": cur.lastrowid}
+
+
+@router.delete("/{acc_id}/extra/{extra_id}", status_code=204)
+def delete_extra_payment(acc_id: int, extra_id: int, conn=Depends(get_db)):
+    conn.execute("DELETE FROM loan_extra_payments WHERE id = ? AND account_id = ?", (extra_id, acc_id))
 
 
 @router.delete("/{acc_id}/values/{value_id}", status_code=204)

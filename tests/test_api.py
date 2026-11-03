@@ -93,6 +93,15 @@ def test_accounts_and_bank_balances(tmp_path, monkeypatch):
         client.post(f"/api/accounts/{acc_id}/values", json={"value_cents": 1490000, "date": "2026-10-01"})
         vals = next(a for a in client.get("/api/accounts").json() if a["id"] == acc_id)["values"]
         assert len(vals) == 2
+        # Sondertilgung: protokolliert, nur positiv, nur bei Krediten
+        assert client.post(f"/api/accounts/{acc_id}/extra", json={"amount_cents": 100000, "date": "2026-10-15"}).status_code == 201
+        assert client.post(f"/api/accounts/{acc_id}/extra", json={"amount_cents": -5}).status_code == 422
+        extra = next(a for a in client.get("/api/accounts").json() if a["id"] == acc_id)["extra_payments"]
+        assert [(x["date"], x["amount_cents"]) for x in extra] == [("2026-10-15", 100000)]
+        giro = next(a for a in client.get("/api/accounts").json() if a["type"] != "loan")
+        assert client.post(f"/api/accounts/{giro['id']}/extra", json={"amount_cents": 100}).status_code == 400
+        client.delete(f"/api/accounts/{acc_id}/extra/{extra[0]['id']}")
+        assert next(a for a in client.get("/api/accounts").json() if a["id"] == acc_id)["extra_payments"] == []
         client.delete(f"/api/accounts/{acc_id}")
         assert all(a["id"] != acc_id for a in client.get("/api/accounts").json())
 

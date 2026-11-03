@@ -140,6 +140,13 @@ window.API = (() => {
       return ok({ ok: true });
     },
     deleteAccountValue: (id, vid) => { const a = accounts.find((x) => x.id === id); a.values = a.values.filter((v) => v.id !== vid); return ok(null); },
+    addExtraPayment: (id, d) => {
+      const a = accounts.find((x) => x.id === id);
+      a.extra_payments = [...(a.extra_payments || []), { id: nextVal++, date: d.date || new Date().toISOString().slice(0, 10), amount_cents: d.amount_cents }]
+        .sort((x, y) => x.date.localeCompare(y.date));
+      return ok({ ok: true });
+    },
+    deleteExtraPayment: (id, xid) => { const a = accounts.find((x) => x.id === id); a.extra_payments = (a.extra_payments || []).filter((x) => x.id !== xid); return ok(null); },
     goals: () => ok(goals.map((g) => ({ ...g }))),
     createGoal: (d) => { const g = { monthly_cents: null, target_month: null, start_cents: 0, icon: "piggy", ...d, id: nextGoal++, archived: false }; goals.push(g); return ok({ ...g }); },
     updateGoal: (id, d) => {

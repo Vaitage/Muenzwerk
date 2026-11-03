@@ -363,6 +363,37 @@ function openNewAccountSheet() {
   });
 }
 
+// Sondertilgung eintragen + Protokoll
+function extraPaymentCard(acc, w) {
+  const list = [...(acc.extra_payments || [])].sort((a, b) => b.date.localeCompare(a.date));
+  const total = list.reduce((s, x) => s + x.amount_cents, 0);
+  return `<div class="card">
+    <h2>${t("Sondertilgung")}</h2>
+    <div class="field-row">
+      <label class="field"><span>${t("Betrag in €")}</span><input type="text" id="extra-amount" inputmode="decimal" placeholder="${decimal(1000, 2)}"></label>
+      <label class="field"><span>${t("Bezahlt am")}</span><input type="date" id="extra-date" value="${A.isoOf(today)}"></label>
+    </div>
+    <p class="extra-hint" id="extra-hint" aria-live="polite">${w.current ? "" : esc(t("Trag zuerst die Restschuld ein."))}</p>
+    <button class="btn block" id="extra-save">${t("Sondertilgung eintragen")}</button>
+    ${list.length ? `<details><summary>${tn(list.length, "{n} Sondertilgung", "{n} Sondertilgungen")} · ${t("zusammen {amount}", { amount: fmt(total) })}</summary>
+      ${list.map((x) => `<div class="row"><div class="grow">${dateDE(x.date)}<div class="hint">${t("Sondertilgung")}</div></div>
+        <b>${fmt(x.amount_cents)}</b><button class="small-del" data-delextra="${x.id}" aria-label="${t("Sondertilgung löschen")}">${icon("trash")}</button></div>`).join("")}</details>` : ""}
+  </div>`;
+}
+
+// Was eine Sondertilgung heute bringen würde (Text unter dem Eingabefeld)
+function extraEffect(acc, w, cents) {
+  if (!cents || cents <= 0 || !w.current) return "";
+  const amount = Math.min(Math.abs(cents), w.current);
+  const now = A.loanInfo(acc, w.current, A.isoOf(today));
+  const after = A.loanInfo(acc, w.current - amount, A.isoOf(today));
+  if (now.interestLeft == null || after.interestLeft == null) return "";
+  const saved = Math.max(0, now.interestLeft - after.interestLeft);
+  const earlier = now.months - after.months;
+  return t("Spart ca. {amount} Zinsen", { amount: fmt(saved) })
+    + (earlier > 0 ? " · " + tn(earlier, "{n} Monat früher schuldenfrei", "{n} Monate früher schuldenfrei") : "");
+}
+
 function openAccountSheet(acc) {
   const w = A.wealth(state.ctx, [acc]).items[0];
   const ty = ACC_TYPES[acc.type];
@@ -375,6 +406,8 @@ function openAccountSheet(acc) {
       <div class="row"><div class="grow">${t("Schuldenfrei")}</div><b>${l.payoffMonth ? `${monthLabel(l.payoffMonth)} <small class="hint">${tn(l.months, "in {n} Monat", "in {n} Monaten")}</small>` : "–"}</b></div>
       <div class="row"><div class="grow">${t("Zinsen bis dahin")}</div><b>${l.interestLeft != null ? fmt(l.interestLeft) : "–"}</b></div>
       <div class="row"><div class="grow">${t("Davon Zinsen in der nächsten Rate")}</div><b>${fmt(l.interestThisMonth)}</b></div>
+      ${l.extra ? `<div class="row"><div class="grow">${t("Sondertilgungen")}<div class="hint">${l.extra.monthsEarlier ? tn(l.extra.monthsEarlier, "{n} Monat früher schuldenfrei", "{n} Monate früher schuldenfrei") : t("seit dem letzten eingetragenen Stand")}</div></div><b>${fmt(l.extra.total)}</b></div>
+      ${l.extra.interestSaved > 0 ? `<div class="row"><div class="grow">${t("Dadurch gesparte Zinsen")}</div><b class="pos">${fmt(l.extra.interestSaved)}</b></div>` : ""}` : ""}
     </div>`;
   } else if (w.depot) {
     const d = w.depot;
@@ -389,6 +422,7 @@ function openAccountSheet(acc) {
     <div class="bigamt ${acc.type === "loan" ? "neg" : ""}">${w.current == null ? "–" : (acc.type === "loan" ? "−" : "") + fmt(w.current)}</div>
     <div class="meta">${w.current == null ? t("Noch kein Wert") : w.estimated ? t("fortgeschrieben, letzter eingetragener Stand {date}", { date: dateDE(w.lastValueDate) }) : t("Stand {date}", { date: dateDE(w.lastValueDate) })}</div>
     ${details}
+    ${acc.type === "loan" ? extraPaymentCard(acc, w) : ""}
     <div class="card">
       <h2>${t("{what} eintragen", { what: ty.value })}</h2>
       <div class="field-row">
@@ -404,7 +438,29 @@ function openAccountSheet(acc) {
       <button class="btn secondary block" id="acc-update" style="margin-top:8px">${t("Änderungen speichern")}</button></div>
     <button class="btn danger block" id="acc-delete">${t("Konto entfernen")}</button>`);
 
+  // Sondertilgung: beim Tippen gleich zeigen, was sie bringt
+  sheet.addEventListener("input", (e) => {
+    if (e.target.id !== "extra-amount") return;
+    $("#extra-hint", sheet).textContent = extraEffect(acc, w, parseEuro(e.target.value));
+  });
   sheet.addEventListener("click", async (e) => {
+    if (e.target.closest("#extra-save")) {
+      const v = parseEuro($("#extra-amount", sheet).value);
+      if (v == null || v <= 0) return $("#extra-amount", sheet).focus();
+      try {
+        await API.addExtraPayment(acc.id, { amount_cents: Math.abs(v), date: $("#extra-date", sheet).value || undefined });
+      } catch (err) { return toast(err.message); }
+      closeSheet();
+      toast(t("Sondertilgung über {amount} gespeichert", { amount: fmt(Math.abs(v)) }));
+      return reload();
+    }
+    const dx = e.target.closest("[data-delextra]");
+    if (dx) {
+      await API.deleteExtraPayment(acc.id, Number(dx.dataset.delextra));
+      closeSheet();
+      toast(t("Sondertilgung gelöscht"));
+      return reload();
+    }
     if (e.target.closest("#val-save")) {
       const v = parseEuro($("#val-amount", sheet).value);
       if (v == null) return $("#val-amount", sheet).focus();

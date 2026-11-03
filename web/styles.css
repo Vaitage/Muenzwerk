@@ -494,11 +494,17 @@ details summary:active { opacity: 0.6; }
 .empty-card .bubble { margin: 0 auto; width: 52px; height: 52px; border-radius: 16px; }
 .empty-card .bubble .ic { width: 28px; height: 28px; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* iOS gibt Datumsfeldern eine feste Eigenbreite – ohne min-width:0/appearance ragen sie aus dem Raster */
+.field-row > .field { min-width: 0; }
 .field input[type="date"] {
-  width: 100%; padding: 11px 12px; border-radius: 12px;
+  display: block; width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box;
+  -webkit-appearance: none; appearance: none; font: inherit; line-height: 20px; text-align: left;
+  padding: 12px 14px; border-radius: 12px; min-height: 46px;
   border: 1px solid var(--line); background: var(--surface); color: var(--text);
-  min-height: 46px;
 }
+.field input[type="date"]::-webkit-date-and-time-value { text-align: left; margin: 0; }
+.field input[type="text"] { box-sizing: border-box; min-height: 46px; line-height: 20px; font: inherit; }
+.extra-hint { font-size: 13px; color: var(--income); margin: -4px 0 12px; min-height: 18px; }
 .field small.hint { display: block; margin-top: 6px; }
 .type-seg button { font-size: 14px; }
 .sheet .card .field input[type="text"], .sheet .card .field input[type="date"] { background: var(--surface-2); }
