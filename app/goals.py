@@ -13,6 +13,7 @@ from . import db
 router = APIRouter(prefix="/api/goals")
 
 MONTH = r"^\d{4}-(0[1-9]|1[0-2])$"
+DATE = r"^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$"
 ICON = r"^[A-Za-z][A-Za-z0-9]{0,29}$"   # Schlüssel aus web/icons.js
 MAX_CENTS = 10**12
 
@@ -28,11 +29,24 @@ class GoalIn(BaseModel):
     target_cents: int = Field(gt=0, le=MAX_CENTS)
     target_month: str | None = Field(default=None, pattern=MONTH)
     monthly_cents: int | None = Field(default=None, gt=0, le=MAX_CENTS)
-    start_month: str = Field(pattern=MONTH)
+    start_month: str | None = Field(default=None, pattern=MONTH)
     start_cents: int = Field(default=0, ge=0, le=MAX_CENTS)
+    # Taggenau: von – bis. Daraus ergeben sich start_month/target_month.
+    start_date: str | None = Field(default=None, pattern=DATE)
+    end_date: str | None = Field(default=None, pattern=DATE)
 
     @model_validator(mode="after")
     def date_or_rate(self):
+        if self.end_date is not None:
+            if self.start_date is None:
+                raise ValueError("Bitte ein Startdatum angeben.")
+            if self.end_date <= self.start_date:
+                raise ValueError("Das Enddatum muss nach dem Start liegen.")
+            self.target_month = self.end_date[:7]
+        if self.start_date is not None:
+            self.start_month = self.start_date[:7]
+        if self.start_month is None:
+            raise ValueError("Bitte einen Start angeben.")
         # Mit Datum ergibt sich die Rate; ohne Datum braucht es eine feste Rate.
         if self.target_month is None and self.monthly_cents is None:
             raise ValueError("Bitte ein Datum oder eine Monatsrate angeben.")
@@ -48,6 +62,8 @@ class GoalPatch(BaseModel):
     target_month: str | None = Field(default=None, pattern=MONTH)
     monthly_cents: int | None = Field(default=None, gt=0, le=MAX_CENTS)
     start_cents: int | None = Field(default=None, ge=0, le=MAX_CENTS)
+    start_date: str | None = Field(default=None, pattern=DATE)
+    end_date: str | None = Field(default=None, pattern=DATE)
     archived: bool | None = None
     clear_target_month: bool = False      # Datum entfernen (dann gilt die feste Rate)
 
@@ -58,6 +74,7 @@ def _goal(row) -> dict:
         "target_cents": row["target_cents"], "target_month": row["target_month"],
         "monthly_cents": row["monthly_cents"], "start_month": row["start_month"],
         "start_cents": row["start_cents"], "archived": bool(row["archived"]),
+        "start_date": row["start_date"], "end_date": row["end_date"],
     }
 
 
@@ -69,10 +86,11 @@ def list_goals(conn=Depends(get_db)):
 @router.post("", status_code=201)
 def create_goal(body: GoalIn, conn=Depends(get_db)):
     cur = conn.execute(
-        "INSERT INTO savings_goals (name, icon, target_cents, target_month, monthly_cents, start_month, start_cents) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO savings_goals (name, icon, target_cents, target_month, monthly_cents, start_month, start_cents, "
+        "start_date, end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (body.name.strip(), body.icon, body.target_cents, body.target_month,
-         None if body.target_month else body.monthly_cents, body.start_month, body.start_cents),
+         None if body.target_month else body.monthly_cents, body.start_month, body.start_cents,
+         body.start_date, body.end_date),
     )
     return _goal(conn.execute("SELECT * FROM savings_goals WHERE id = ?", (cur.lastrowid,)).fetchone())
 
@@ -89,17 +107,26 @@ def update_goal(goal_id: int, body: GoalPatch, conn=Depends(get_db)):
             new[key] = value
     if body.name is not None:
         new["name"] = body.name.strip()
+    if body.start_date is not None:
+        new["start_date"], new["start_month"] = body.start_date, body.start_date[:7]
+    if body.end_date is not None:
+        new["end_date"], new["target_month"] = body.end_date, body.end_date[:7]
+    elif body.target_month is not None:
+        new["end_date"] = None                     # nur noch Monat
     if body.clear_target_month:
-        new["target_month"] = None
+        new["target_month"] = new["end_date"] = None
+    if new["end_date"] and new["start_date"] and new["end_date"] <= new["start_date"]:
+        raise HTTPException(422, "Das Enddatum muss nach dem Start liegen.")
     if new["target_month"] is None and not new["monthly_cents"]:
         raise HTTPException(422, "Bitte ein Datum oder eine Monatsrate angeben.")
     if new["target_month"] is not None and new["target_month"] < new["start_month"]:
         raise HTTPException(422, "Das Datum liegt vor dem Start.")
     conn.execute(
         "UPDATE savings_goals SET name = ?, icon = ?, target_cents = ?, target_month = ?, monthly_cents = ?, "
-        "start_cents = ?, archived = ? WHERE id = ?",
+        "start_cents = ?, archived = ?, start_month = ?, start_date = ?, end_date = ? WHERE id = ?",
         (new["name"], new["icon"], new["target_cents"], new["target_month"],
-         None if new["target_month"] else new["monthly_cents"], new["start_cents"], int(new["archived"]), goal_id),
+         None if new["target_month"] else new["monthly_cents"], new["start_cents"], int(new["archived"]),
+         new["start_month"], new["start_date"], new["end_date"], goal_id),
     )
     return _goal(conn.execute("SELECT * FROM savings_goals WHERE id = ?", (goal_id,)).fetchone())
 

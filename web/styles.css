@@ -892,7 +892,49 @@ button.hm:active { transform: scale(0.94); }
 .pbar i { display: block; height: 100%; border-radius: 5px; background: var(--income); }
 .pbar u { position: absolute; top: 0; height: 100%; background: color-mix(in srgb, var(--income) 40%, transparent); }
 .pbar b { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text); opacity: 0.7; }
-.goal-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--muted); }
+.goal-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
+.goal-meta > span:last-child { text-align: right; }
+.goal-pill { flex: none; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; color: var(--muted); background: var(--surface-2); }
+.goal-pill.ok { color: var(--income); background: color-mix(in srgb, var(--income) 13%, transparent); }
+.goal-pill.warn { color: var(--warn); background: var(--warn-soft); }
+.goal-amt { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 12px; }
+.goal-amt > b { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.goal-amt > span { font-size: 13px; color: var(--muted); text-align: right; }
+.goal-amt > span b { color: var(--text); }
+.goal .pbar { margin-top: 8px; overflow: visible; }
+.goal .pbar b { top: -4px; bottom: -4px; border-radius: 1px; opacity: 0.4; }
+.goal-task { background: var(--surface-2); border-radius: 14px; padding: 12px 14px; margin-top: 14px; display: flex; flex-direction: column; gap: 2px; }
+.goal-task .sub { font-size: 13px; color: var(--muted); }
+.goal-task > div > b { font-size: 22px; font-weight: 800; }
+.goal-task > span:last-child { margin-top: 4px; line-height: 1.4; }
+.goal-note { display: flex; gap: 10px; border-radius: 14px; padding: 12px 14px; margin-top: 10px; font-size: 14px; line-height: 1.45; }
+.goal-note > .ic { flex: none; width: 18px; height: 18px; margin-top: 1px; stroke-width: 2.4; }
+.goal-note.ok { background: color-mix(in srgb, var(--income) 12%, transparent); }
+.goal-note.ok > .ic { color: var(--income); }
+.goal-note.warn { background: var(--warn-soft); }
+.goal-note.warn > .ic { color: var(--warn); }
+.goal-tip { display: block; margin-top: 8px; }
+.goal-path { list-style: none; margin: 16px 0 0; padding: 0; display: flex; }
+.goal-path li { flex: 1; min-width: 0; text-align: center; position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.goal-path li + li::before { content: ""; position: absolute; top: 12px; right: calc(50% + 15px); left: calc(-50% + 15px); height: 2px; background: var(--line); }
+.goal-path li.done + li::before, .goal-path li.part + li::before { background: var(--accent); }
+.goal-path .dot { width: 26px; height: 26px; box-sizing: border-box; border-radius: 50%; border: 2.5px solid var(--line); background: var(--surface); display: grid; place-items: center; margin-bottom: 4px; }
+.goal-path .dot svg { width: 14px; height: 14px; fill: none; stroke: #fff; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round; }
+.goal-path .done .dot { background: var(--accent-fill); border-color: var(--accent-fill); }
+.goal-path .part .dot { border-color: var(--accent); }
+.goal-path .now .dot { border-color: var(--income); }
+.goal-path .now .dot::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--income); }
+.goal-path .now.warn .dot { border-color: var(--warn); }
+.goal-path .now.warn .dot::after { background: var(--warn); }
+.goal-path .goal .dot { background: var(--accent-fill); border-color: var(--accent-fill); }
+.goal-path b { font-size: 13px; white-space: nowrap; }
+.goal-path small { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.goal-how { margin-top: 10px; font-size: 13px; color: var(--muted); }
+.goal-how summary { min-height: 44px; display: flex; align-items: center; color: var(--accent); font-weight: 600; cursor: pointer; }
+.goal-how p { margin: 0 0 4px; line-height: 1.45; }
+.goal-calc { margin: -4px 0 12px; font-size: 14px; color: var(--text); line-height: 1.45; }
+.goal-calc span { font-size: 13px; color: var(--muted); }
+.goal-calc.bad { color: var(--danger); }
 .goal-st { font-weight: 600; white-space: nowrap; color: var(--muted); }
 .goal-st.ok { color: var(--income); }
 .goal-st.tight, .goal-st.late { color: var(--warn); }

@@ -32,6 +32,17 @@ def test_sparziele_anlegen_aendern_archivieren(tmp_path, monkeypatch):
         assert client.patch(f"/api/goals/{g['id']}", json={"archived": True}).json()["archived"] is True
         assert client.patch("/api/goals/999", json={"archived": True}).status_code == 404
 
+        # Taggenau: von – bis; Monate ergeben sich daraus
+        d = client.post("/api/goals", json={"name": "Reise", "target_cents": 90000,
+                                             "start_date": "2026-11-06", "end_date": "2027-02-15"}).json()
+        assert (d["start_month"], d["target_month"], d["start_date"], d["end_date"]) == ("2026-11", "2027-02", "2026-11-06", "2027-02-15")
+        assert client.post("/api/goals", json={"name": "x", "target_cents": 1, "start_date": "2026-11-06",
+                                               "end_date": "2026-11-06"}).status_code == 422
+        d2 = client.patch(f"/api/goals/{d['id']}", json={"end_date": "2027-03-31"}).json()
+        assert (d2["target_month"], d2["end_date"]) == ("2027-03", "2027-03-31")
+        assert client.patch(f"/api/goals/{d['id']}", json={"end_date": "2026-10-01"}).status_code == 422
+        client.delete(f"/api/goals/{d['id']}")
+
         assert client.delete(f"/api/goals/{p['id']}").status_code == 204
         assert [x["id"] for x in client.get("/api/goals").json()] == [g["id"]]
 

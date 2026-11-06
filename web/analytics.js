@@ -794,11 +794,25 @@
   // ein Minus-Monat zieht im selben Verhältnis wieder ab (nie unter 0).
   const monthsBetween = (a, b) => (Number(b.slice(0, 4)) * 12 + Number(b.slice(5, 7))) - (Number(a.slice(0, 4)) * 12 + Number(a.slice(5, 7)));
 
+  // Taggenaue Ziele (start_date/end_date): Tage des Monats m, die im Zeitraum liegen, und Tage ab dort bis zum Ende
+  const dayNo = (iso) => Math.round(Date.parse(iso + "T12:00:00Z") / 86400000);
+  function goalWindow(g, m) {
+    const mStart = `${m}-01`, mEnd = `${m}-${pad(daysIn(m))}`;
+    const from = g.start_date && g.start_date > mStart ? g.start_date : mStart;
+    const to = g.end_date < mEnd ? g.end_date : mEnd;
+    return { inMonth: Math.max(0, dayNo(to) - dayNo(from) + 1), left: dayNo(g.end_date) - dayNo(from) + 1 };
+  }
+
   function goalRate(s, m) {
     const g = s.goal;
     if (s.reached || m < g.start_month) return 0;
     const rest = g.target_cents - s.saved;
     if (rest <= 0) return 0;
+    if (g.end_date) {
+      if (m >= g.end_date.slice(0, 7)) return rest;               // letzter Monat (oder schon vorbei): der ganze Rest
+      const w = goalWindow(g, m);
+      return w.left > 0 ? Math.ceil((rest * w.inMonth) / w.left) : rest;
+    }
     if (g.target_month) return Math.ceil(rest / Math.max(1, monthsBetween(m, g.target_month) + 1));
     return Math.min(rest, g.monthly_cents || 0);
   }
@@ -851,7 +865,7 @@
       const g = s.goal;
       const rate = ratesNow[i];
       const reach = sim[i].reached;
-      let status = null, lateBy = 0, needNext = null, planned = null;
+      let status = null, lateBy = 0, needNext = null, planned = null, plannedMonthEnd = null;
       if (s.reached) status = "reached";
       else if (g.target_month) {
         lateBy = reach ? Math.max(0, monthsBetween(g.target_month, reach)) : null;
@@ -862,14 +876,27 @@
         const total = monthsBetween(g.start_month, g.target_month) + 1;
         const done = Math.min(total, Math.max(0, monthsBetween(g.start_month, cur)));
         planned = Math.round((g.start_cents || 0) + (g.target_cents - (g.start_cents || 0)) * (done / total));
+        // Soll am Ende dieses Monats (für den Strich und „Ende November sollten es … sein“)
+        let frac = Math.min(total, done + 1) / total;
+        if (g.end_date && g.start_date) {
+          const end = `${cur}-${pad(daysIn(cur))}`;
+          frac = Math.min(1, Math.max(0, (dayNo(end < g.end_date ? end : g.end_date) - dayNo(g.start_date) + 1) / (dayNo(g.end_date) - dayNo(g.start_date) + 1)));
+        }
+        plannedMonthEnd = Math.round((g.start_cents || 0) + (g.target_cents - (g.start_cents || 0)) * frac);
       }
+      // Tage des laufenden Monats, auf die sich die Rate verteilt (taggenau: nur die im Zeitraum)
+      const days = g.end_date ? Math.max(1, goalWindow(g, cur).inMonth) : daysIn(cur);
       return {
-        goal: g, saved: s.saved, reached: s.reached, rate, perDay: rate / daysIn(cur),
-        expectedNow: expectedNow[i], reach, status, lateBy, needNext, planned,
+        goal: g, saved: s.saved, reached: s.reached, rate, perDay: rate / days,
+        expectedNow: expectedNow[i], reach, status, lateBy, needNext, planned, plannedMonthEnd,
         history: s.history.slice(-3),
       };
     });
-    return { goals: result, planned: ratesNow.reduce((a, b) => a + b, 0), avgSurplus: avg };
+    const plannedNow = ratesNow.reduce((a, b) => a + b, 0);
+    // Tipp: höchstens so viel pro Tag (variabel) ausgeben, damit alle Raten dieses Monats drin sind
+    const remDays = report.days - report.elapsed;
+    const tipDaily = remDays > 0 ? (report.budgetLeft + report.expectedIncomeTotal - plannedNow) / remDays : null;
+    return { goals: result, planned: plannedNow, avgSurplus: avg, forecastEnd: report.forecastEnd, tipDaily };
   }
 
   // ------------------------------------------------------------ Heatmap: Ausgaben je Tag

@@ -138,6 +138,8 @@ CREATE TABLE IF NOT EXISTS savings_goals (
     monthly_cents INTEGER,              -- feste Rate, nur ohne Datum
     start_month   TEXT NOT NULL,        -- ab diesem Budgetmonat
     start_cents   INTEGER NOT NULL DEFAULT 0,   -- schon vorhanden
+    start_date    TEXT,                 -- YYYY-MM-DD, taggenau (seit 1.27); NULL = ganzer Startmonat
+    end_date      TEXT,                 -- YYYY-MM-DD, taggenau (seit 1.27); NULL = Ende von target_month
     archived      INTEGER NOT NULL DEFAULT 0,
     created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -248,6 +250,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
         for r in conn.execute("SELECT id, pattern FROM rules WHERE source = 'user' AND direction IS NOT NULL").fetchall():
             if r["pattern"] in names:
                 conn.execute("UPDATE rules SET scope = 'counterparty' WHERE id = ?", (r["id"],))
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(savings_goals)")}
+    for col in ("start_date", "end_date"):
+        if cols and col not in cols:
+            conn.execute(f"ALTER TABLE savings_goals ADD COLUMN {col} TEXT")
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(bank_connection)")}
     if "accounts_info" not in cols:
         conn.execute("ALTER TABLE bank_connection ADD COLUMN accounts_info TEXT")

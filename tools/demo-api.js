@@ -148,12 +148,19 @@ window.API = (() => {
     },
     deleteExtraPayment: (id, xid) => { const a = accounts.find((x) => x.id === id); a.extra_payments = (a.extra_payments || []).filter((x) => x.id !== xid); return ok(null); },
     goals: () => ok(goals.map((g) => ({ ...g }))),
-    createGoal: (d) => { const g = { monthly_cents: null, target_month: null, start_cents: 0, icon: "piggy", ...d, id: nextGoal++, archived: false }; goals.push(g); return ok({ ...g }); },
+    createGoal: (d) => {
+      const g = { monthly_cents: null, target_month: null, start_cents: 0, icon: "piggy", start_date: null, end_date: null, ...d, id: nextGoal++, archived: false };
+      if (g.start_date) g.start_month = g.start_date.slice(0, 7);
+      if (g.end_date) { g.target_month = g.end_date.slice(0, 7); g.monthly_cents = null; }
+      goals.push(g); return ok({ ...g });
+    },
     updateGoal: (id, d) => {
       const g = goals.find((x) => x.id === id);
       const { clear_target_month: clear, ...rest } = d;
       Object.assign(g, rest);
-      if (clear) g.target_month = null;
+      if (g.start_date) g.start_month = g.start_date.slice(0, 7);
+      if (rest.end_date) g.target_month = rest.end_date.slice(0, 7);
+      if (clear) { g.target_month = null; g.end_date = null; }
       if (g.target_month) g.monthly_cents = null;
       return ok({ ...g });
     },

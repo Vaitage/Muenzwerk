@@ -307,6 +307,20 @@ test("Sparziel: Minus-Monat zieht ab, nie unter 0; erreicht und archiviert", () 
   assert.deepEqual(A.goalsReport(ctxFor("2026-10-14"), [{ ...g, archived: true }]), { goals: [], planned: 0 });
 });
 
+test("Sparziel taggenau: Rate nach Tagen im Zeitraum, pro Tag und Soll zum Monatsende", () => {
+  const ctx = ctxFor("2026-10-14");
+  // 14.10. bis 31.12.: 79 Tage, im Oktober 18 davon → 900 € × 18/79
+  const g = { id: 1, name: "Reise", target_cents: 90000, start_month: "2026-10", target_month: "2026-12",
+    start_date: "2026-10-14", end_date: "2026-12-31", start_cents: 0 };
+  const r = A.goalsReport(ctx, [g]);
+  const x = r.goals[0];
+  assert.equal(x.rate, Math.ceil((90000 * 18) / 79));
+  assert.equal(Math.round(x.perDay), Math.round(x.rate / 18));
+  assert.equal(x.plannedMonthEnd, Math.round((90000 * 18) / 79));
+  assert.equal(typeof r.forecastEnd, "number");
+  assert.equal(typeof r.tipDaily, "number");
+});
+
 test("Sparziel: hinter dem Plan → zu spät und höhere Rate ab nächstem Monat", () => {
   const ctx = ctxFor("2026-10-14");
   const g = { id: 1, name: "Groß", target_cents: 2000000, target_month: "2026-12", start_month: "2026-09", start_cents: 0 };

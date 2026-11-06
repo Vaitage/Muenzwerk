@@ -53,44 +53,95 @@ const CHECK_TEXT = {
 // was am Monatsende übrig bleibt (höchstens die Rate). Rechnung: A.goalsReport.
 const GOAL_ICONS = ["piggy", "plane", "home", "car", "gift", "shield", "heart", "laptop", "graduation", "paw", "shirt", "coins"];
 
-function goalStatus(g) {
+// Status oben rechts: Im Plan / Gefährdet / Erreicht (ohne Datum: wann es voraussichtlich klappt)
+function goalPill(g) {
+  if (g.status === "reached") return ["ok", t("Erreicht")];
+  if (g.status === "ok") return ["ok", t("Im Plan")];
+  if (!g.goal.target_month) return g.reach ? ["", t("Ziel ca. {month}", { month: `${shortMonth(g.reach)} ${g.reach.slice(0, 4)}` })] : ["warn", t("Gefährdet")];
+  return ["warn", t("Gefährdet")];
+}
+
+const GOAL_CHECK = '<path d="m5 12 5 5 9-10"/>';
+const GOAL_FLAG = '<path d="M5 21V4h11l-2 4 2 4H5"/>';
+const pathIcon = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+
+// Monatspfad: zuletzt abgeschlossene Monate, der laufende, die restlichen bis zum Ziel
+function goalPath(g, warn) {
   const gl = g.goal;
-  if (g.status === "reached") return { cls: "ok", text: t("erreicht im {month}", { month: monthLabel(g.reached) }) };
-  if (!gl.target_month) return g.reach ? { cls: "", text: t("erreicht ca. {month}", { month: monthLabel(g.reach) }) } : { cls: "late", text: t("nicht absehbar") };
-  if (g.status === "ok") return { cls: "ok", text: t("im Plan") };
-  if (g.reach == null) return { cls: "late", text: t("nicht absehbar") };
-  return { cls: g.status === "tight" ? "tight" : "late", text: tn(g.lateBy, "{n} Monat zu spät", "{n} Monate zu spät") };
+  const nodes = [];
+  for (const h of g.history.slice(-2)) {
+    const full = h.rate > 0 && h.credit >= h.rate;
+    nodes.push({ cls: full ? "done" : "part", icon: full ? GOAL_CHECK : "", label: shortMonth(h.month), sub: fmt0(Math.max(0, h.credit)) });
+  }
+  nodes.push({ cls: warn ? "now warn" : "now", label: shortMonth(thisMonth), sub: t("{amount} · läuft", { amount: fmt0(g.rate) }) });
+  if (gl.target_month) {
+    const next = addMonths(thisMonth, 1);
+    const last = gl.target_month;
+    if (next <= last && g.needNext) {
+      const label = next === last ? shortMonth(next) : `${shortMonth(next)} – ${shortMonth(last)}`;
+      nodes.push({ cls: "later", label, sub: next === last ? fmt0(g.needNext) : t("je {amount}", { amount: fmt0(g.needNext) }) });
+    }
+    nodes.push({ cls: "goal", icon: GOAL_FLAG, label: t("Ziel"), sub: fmt0(gl.target_cents) });
+  } else {
+    nodes.push({ cls: "goal", icon: GOAL_FLAG, label: g.reach ? shortMonth(g.reach) : t("Ziel"), sub: fmt0(gl.target_cents) });
+  }
+  return `<ol class="goal-path">${nodes.map((n) => `<li class="${n.cls}"><span class="dot">${n.icon ? pathIcon(n.icon) : ""}</span>
+    <b>${esc(n.label)}</b><small>${esc(n.sub)}</small></li>`).join("")}</ol>`;
 }
 
 function goalRow(g) {
   const gl = g.goal;
+  const rep = state.goalRep || {};
   const pct = (c) => Math.max(0, Math.min(100, (c / gl.target_cents) * 100));
-  const st = goalStatus(g);
-  const lines = [];
-  if (g.rate > 0) lines.push([t("Diesen Monat eingeplant"), t("{amount} · {day} pro Tag", { amount: fmt0(g.rate), day: fmt(Math.round(g.perDay)) })]);
-  if (g.status !== "reached") {
-    lines.push([t("Kommt diesen Monat voraussichtlich dazu"), `<span class="${g.expectedNow >= 0 ? "pos" : "neg"}">${signed(g.expectedNow)}</span>`]);
-    lines.push([t("Wenn du weiter so ausgibst"), g.reach ? t("erreicht {month}", { month: monthLabel(g.reach) }) : t("nicht absehbar")]);
-    if (gl.target_month && g.status !== "ok" && g.needNext) {
-      lines.push([t("Für {month} nötig ab {next}", { month: monthLabel(gl.target_month), next: monthName(addMonths(thisMonth, 1)) }), t("{amount} pro Monat", { amount: fmt0(g.needNext) })]);
+  const [pillCls, pillText] = goalPill(g);
+  const reached = g.status === "reached";
+  const month = monthName(thisMonth);
+  const sub = gl.target_month
+    ? t("{amount} bis {date}", { amount: fmt0(gl.target_cents), date: gl.end_date ? dateDE(gl.end_date) : monthLabel(gl.target_month) })
+    : t("{amount} · {rate} pro Monat", { amount: fmt0(gl.target_cents), rate: fmt0(gl.monthly_cents) });
+
+  // Prognose in einem Satz: reicht, was diesen Monat übrig bleibt, für die Rate?
+  let note = "", warn = false;
+  if (!reached && g.rate > 0) {
+    const fe = rep.forecastEnd ?? 0;
+    if (g.expectedNow >= g.rate) {
+      note = t("Laut Prognose bleiben Ende {month} rund {amount} übrig – die {rate} sind drin.", { month, amount: `<b>${fmt0(fe)}</b>`, rate: fmt0(g.rate) })
+        + (g.reach ? " " + t("So erreichst du das Ziel im {month}.", { month: `<b>${monthLabel(g.reach)}</b>` }) : "");
+    } else {
+      warn = true;
+      note = fe > 0
+        ? t("Laut Prognose bleiben Ende {month} nur rund {amount} übrig – aufs Ziel kommen dann {part} statt {rate}.", { month, amount: `<b>${fmt0(fe)}</b>`, part: fmt0(Math.max(0, g.expectedNow)), rate: fmt0(g.rate) })
+        : t("Laut Prognose fehlen dir Ende {month} rund {amount}. Dann kommt diesen Monat nichts aufs Ziel.", { month, amount: `<b>${fmt0(-fe)}</b>` });
+      if (gl.target_month && g.needNext && addMonths(thisMonth, 1) <= gl.target_month) {
+        note += " " + t("Ab {month} wären es {amount} pro Monat.", { month: monthName(addMonths(thisMonth, 1)), amount: `<b>${fmt0(g.needNext)}</b>` });
+      }
+      if (rep.tipDaily > 100) note += `<span class="goal-tip"><b>${t("Tipp:")}</b> ${t("Gib bis Monatsende höchstens {amount} pro Tag für Variables aus, dann klappt es diesen Monat.", { amount: `<b>${fmt(Math.floor(rep.tipDaily / 100) * 100)}</b>` })}</span>`;
     }
   }
-  const months = [...g.history.map((h) => ({ label: shortMonth(h.month), cents: h.credit, run: false })),
-    ...(g.status === "reached" ? [] : [{ label: t("{month} (läuft)", { month: shortMonth(thisMonth) }), cents: g.expectedNow, run: true }])];
+  const showPlan = g.plannedMonthEnd != null && !reached;
+
   return `<div class="goal">
     <button class="goal-head" data-goal="${gl.id}" aria-label="${t("Sparziel bearbeiten: {name}", { name: esc(gl.name) })}">
       <div class="bubble">${icon(gl.icon)}</div>
-      <div class="grow"><b>${esc(gl.name)}</b><div class="hint">${gl.target_month ? t("bis {month}", { month: monthLabel(gl.target_month) }) : t("{amount} pro Monat", { amount: fmt0(gl.monthly_cents) })} · ${t("bleibt auf dem Girokonto")}</div></div>
-      <b class="goal-sum">${fmt0(g.saved)} / ${fmt0(gl.target_cents)}</b>
+      <div class="grow"><b>${esc(gl.name)}</b><div class="hint">${sub}</div></div>
+      <span class="goal-pill ${pillCls}">${pillText}</span>
     </button>
+    <div class="goal-amt"><b>${fmt0(g.saved)}</b>${reached ? "" : `<span>${t("noch {amount} bis zum Ziel", { amount: `<b>${fmt0(Math.max(0, gl.target_cents - g.saved))}</b>` })}</span>`}</div>
     <div class="pbar" role="img" aria-label="${t("{saved} von {target} gespart", { saved: fmt0(g.saved), target: fmt0(gl.target_cents) })}">
       <i style="width:${pct(g.saved)}%"></i>
-      ${g.expectedNow > 0 && g.status !== "reached" ? `<u style="left:${pct(g.saved)}%;width:${pct(g.saved + g.expectedNow) - pct(g.saved)}%"></u>` : ""}
-      ${g.planned != null && g.status !== "reached" ? `<b style="left:${pct(g.planned)}%"></b>` : ""}
+      ${showPlan ? `<b style="left:${pct(g.plannedMonthEnd)}%"></b>` : ""}
     </div>
-    <div class="goal-meta"><span>${g.planned != null && g.status !== "reached" ? t("Strich = laut Plan bis jetzt {amount}", { amount: fmt0(g.planned) }) : ""}</span><span class="goal-st ${st.cls}">${st.text}</span></div>
-    ${lines.length ? `<div class="goal-box">${lines.map(([a, b]) => `<div class="line-row"><span>${a}</span><span>${b}</span></div>`).join("")}</div>` : ""}
-    ${months.length ? `<div class="goal-months">${months.map((m) => `<div>${esc(m.label)}<b class="${m.run ? "" : m.cents > 0 ? "pos" : m.cents < 0 ? "neg" : ""}">${m.run ? "~" : ""}${signed(m.cents).replace(/,\d\d(?=\s?€)/, "")}</b></div>`).join("")}</div>` : ""}
+    <div class="goal-meta"><span>${t("{p} % gespart", { p: Math.round(pct(g.saved)) })}</span>
+      <span>${showPlan ? t("Ende {month} sollten es {amount} sein", { month, amount: fmt0(g.plannedMonthEnd) }) : ""}</span></div>
+    ${!reached && g.rate > 0 ? `<div class="goal-task">
+      <span class="sub">${t("Diesen Monat zur Seite legen")}</span>
+      <div><b>${fmt0(g.rate)}</b> <span class="sub">≈ ${t("{amount} pro Tag", { amount: fmt(Math.round(g.perDay)) })}</span></div>
+      <span class="sub">${t("Schon von „Übrig bis Monatsende“ abgezogen – du musst nichts überweisen.")}</span>
+    </div>` : ""}
+    ${note ? `<div class="goal-note ${warn ? "warn" : "ok"}">${icon(warn ? "alert" : "check")}<div>${note}</div></div>` : ""}
+    ${reached ? "" : goalPath(g, warn)}
+    <details class="goal-how"><summary>${t("Wie wird gerechnet?")}</summary>
+      <p>${t("Fürs Ziel zählt, was am Monatsende übrig bleibt – höchstens die Rate des Monats. Reicht es nicht, verteilt sich der Rest auf die übrigen Monate bis zum Enddatum. Die Rate ist schon von „Übrig bis Monatsende“ und dem Tagesbudget abgezogen.")}</p></details>
   </div>`;
 }
 
@@ -113,11 +164,18 @@ function goalsCard() {
   </section>`;
 }
 
+const lastDayOf = (m) => `${m}-${String(A.daysIn(m)).padStart(2, "0")}`;
+const addDaysIso = (iso, n) => A.isoOf(new Date(new Date(iso + "T12:00:00").getTime() + n * 86400000));
+const daysIncl = (a, b) => Math.round((Date.parse(b + "T12:00:00Z") - Date.parse(a + "T12:00:00Z")) / 86400000) + 1;
+
 function openGoalSheet(goal) {
   const g = goal || {};
   let chosenIcon = g.icon || "piggy";
   let dated = goal ? !!g.target_month : true;
   let startNext = false;
+  const todayIso = A.isoOf(today);
+  const from0 = g.start_date || (goal ? `${g.start_month}-01` : todayIso);
+  const to0 = g.end_date || (g.target_month ? lastDayOf(g.target_month) : addDaysIso(todayIso, 182));
   const sheet = openSheet(`
     <h3>${goal ? t("Sparziel bearbeiten") : t("Sparziel anlegen")}</h3>
     <div class="meta">${t("Das Geld bleibt auf dem Girokonto. Die Rate wird jeden Monat in deinem Tagesbudget eingeplant.")}</div>
@@ -125,20 +183,42 @@ function openGoalSheet(goal) {
     <div class="field"><span>${t("Symbol")}</span><div class="icon-pick">${GOAL_ICONS.map((i) => `<button data-icon="${i}" aria-pressed="${i === chosenIcon}" aria-label="${i}">${icon(i)}</button>`).join("")}</div></div>
     <label class="field"><span>${t("Zielbetrag in €")}</span><input type="text" id="g-target" inputmode="decimal" value="${euroInput(g.target_cents)}" placeholder="${decimal(2400, 2)}"></label>
     <div class="seg" role="group" aria-label="${t("Bis wann")}">
-      <button data-gdated="1" aria-pressed="${dated}">${t("Bis zu einem Datum")}</button>
+      <button data-gdated="1" aria-pressed="${dated}">${t("Von – bis")}</button>
       <button data-gdated="0" aria-pressed="${!dated}">${t("Feste Monatsrate")}</button>
     </div>
-    <label class="field" id="g-month-f" ${dated ? "" : "hidden"}><span>${t("Bis wann (Monat)")}</span><input type="month" id="g-month" value="${esc(g.target_month || addMonths(thisMonth, 6))}" min="${thisMonth}"></label>
+    <div id="g-dates" ${dated ? "" : "hidden"}>
+      <div class="field-row">
+        <label class="field"><span>${t("Start")}</span><input type="date" id="g-from" value="${esc(from0)}"></label>
+        <label class="field"><span>${t("Ende")}</span><input type="date" id="g-to" value="${esc(to0)}" min="${esc(addDaysIso(todayIso, 1))}"></label>
+      </div>
+      <p class="goal-calc" id="g-calc" aria-live="polite"></p>
+    </div>
     <label class="field" id="g-rate-f" ${dated ? "hidden" : ""}><span>${t("Rate pro Monat in €")}</span><input type="text" id="g-rate" inputmode="decimal" value="${euroInput(g.monthly_cents)}" placeholder="${decimal(200, 2)}"></label>
     <label class="field"><span>${t("Schon vorhanden in €")}</span><input type="text" id="g-start" inputmode="decimal" value="${euroInput(g.start_cents || 0)}">
       <small class="hint">${t("Was schon auf dem Konto liegt und fürs Ziel zählen soll.")}</small></label>
-    ${goal ? "" : `<div class="seg" role="group" aria-label="${t("Ab wann")}">
+    ${goal ? "" : `<div class="seg" id="g-next" role="group" aria-label="${t("Ab wann")}" ${dated ? "hidden" : ""}>
       <button data-gnext="0" aria-pressed="true">${t("Ab diesem Monat")}</button>
       <button data-gnext="1" aria-pressed="false">${t("Ab nächstem Monat")}</button>
     </div>`}
     <button class="btn block" id="g-save">${goal ? t("Speichern") : t("Anlegen")}</button>
     ${goal ? `<div class="btn-row"><button class="btn secondary" id="g-archive">${t("Archivieren")}</button><button class="btn secondary danger-text" id="g-delete">${t("Löschen")}</button></div>` : ""}
   `);
+  // Durchrechnen: (Ziel − schon vorhanden) ÷ Tage von Start bis Ende
+  const calc = () => {
+    const out = $("#g-calc", sheet);
+    const target = parseEuro($("#g-target", sheet).value) || 0;
+    const start = parseEuro($("#g-start", sheet).value) || 0;
+    const from = $("#g-from", sheet).value, to = $("#g-to", sheet).value;
+    if (!from || !to || to <= from) { out.textContent = from && to ? t("Das Enddatum muss nach dem Start liegen.") : ""; out.classList.add("bad"); return; }
+    out.classList.remove("bad");
+    const days = daysIncl(from, to);
+    const rest = Math.max(0, target - start);
+    if (!rest) { out.textContent = tn(days, "{n} Tag", "{n} Tage"); return; }
+    out.innerHTML = `<b>${fmt(Math.ceil(rest / days))}</b> ${t("pro Tag")} · ${t("ca. {amount} im Monat", { amount: fmt0((rest / days) * 30.44) })}<br><span>${tn(days, "{n} Tag", "{n} Tage")} · ${dateDE(from)} – ${dateDE(to)}</span>`;
+  };
+  calc();
+  sheet.addEventListener("input", (e) => { if (["g-target", "g-start", "g-from", "g-to"].includes(e.target.id)) calc(); });
+  sheet.addEventListener("change", (e) => { if (["g-from", "g-to"].includes(e.target.id)) calc(); });
   sheet.addEventListener("click", async (e) => {
     const ib = e.target.closest("[data-icon]");
     if (ib) { chosenIcon = ib.dataset.icon; sheet.querySelectorAll("[data-icon]").forEach((b) => b.setAttribute("aria-pressed", b === ib)); return; }
@@ -146,7 +226,8 @@ function openGoalSheet(goal) {
     if (db) {
       dated = db.dataset.gdated === "1";
       sheet.querySelectorAll("[data-gdated]").forEach((b) => b.setAttribute("aria-pressed", b === db));
-      $("#g-month-f", sheet).hidden = !dated; $("#g-rate-f", sheet).hidden = dated;
+      $("#g-dates", sheet).hidden = !dated; $("#g-rate-f", sheet).hidden = dated;
+      const nx = $("#g-next", sheet); if (nx) nx.hidden = dated;
       return;
     }
     const nb = e.target.closest("[data-gnext]");
@@ -163,18 +244,19 @@ function openGoalSheet(goal) {
     if (!e.target.closest("#g-save")) return;
     const name = $("#g-name", sheet).value.trim();
     const target = parseEuro($("#g-target", sheet).value);
-    const month = $("#g-month", sheet).value;
+    const from = $("#g-from", sheet).value, to = $("#g-to", sheet).value;
     const rate = parseEuro($("#g-rate", sheet).value);
     const start = parseEuro($("#g-start", sheet).value) || 0;
     if (!name) return $("#g-name", sheet).focus();
     if (!target || target <= 0) { toast(t("Bitte einen Zielbetrag eingeben.")); return $("#g-target", sheet).focus(); }
-    if (dated && !/^\d{4}-\d{2}$/.test(month)) { toast(t("Bitte einen Monat wählen.")); return $("#g-month", sheet).focus(); }
+    if (dated && (!from || !to || to <= from)) { toast(t("Das Enddatum muss nach dem Start liegen.")); return $("#g-to", sheet).focus(); }
     if (!dated && (!rate || rate <= 0)) { toast(t("Bitte eine Monatsrate eingeben.")); return $("#g-rate", sheet).focus(); }
     const data = { name, icon: chosenIcon, target_cents: target, start_cents: Math.max(0, start) };
-    if (dated) data.target_month = month; else { data.monthly_cents = rate; if (goal) data.clear_target_month = true; }
+    if (dated) { data.start_date = from; data.end_date = to; }
+    else { data.monthly_cents = rate; if (goal) data.clear_target_month = true; }
     try {
       if (goal) await API.updateGoal(goal.id, data);
-      else await API.createGoal({ ...data, start_month: startNext ? addMonths(thisMonth, 1) : thisMonth });
+      else await API.createGoal(dated ? data : { ...data, start_month: startNext ? addMonths(thisMonth, 1) : thisMonth });
       closeSheet();
       toast(goal ? t("Sparziel gespeichert") : t("Sparziel „{name}“ angelegt", { name }));
       await reload();
