@@ -517,6 +517,26 @@ test("Prognose lernt aus eigenen Fehlern und lässt sich abschalten", () => {
   assert.ok(on.forecastEnd > off.forecastEnd);
 });
 
+test("Tagesbudget als Topf: fester Tagessatz, Unverbrauchtes bleibt drin", () => {
+  // 30 Tage, 600 € fürs Monat, nichts ausgegeben: Tag 1 → 20/40/60, Tag 2 → 40/60/80
+  const pre = [{ income: 0 }, { income: 0 }, { income: 0 }];
+  const day1 = A.fillPreview(pre, 60000, 30, { spent: 0, days: 30, income: 0 });
+  assert.deepEqual(day1.map((p) => Math.round(p.available)), [2000, 4000, 6000]);
+  assert.equal(day1[0].daily, 2000);
+  const day2 = A.fillPreview(pre, 60000, 29, { spent: 0, days: 30, income: 0 });
+  assert.deepEqual(day2.map((p) => Math.round(p.available)), [4000, 6000, 8000]);
+  // 30 € am ersten Tag ausgegeben → am zweiten Tag heute nur 10 €
+  const spent = A.fillPreview(pre, 57000, 29, { spent: 3000, days: 30, income: 0 });
+  assert.equal(Math.round(spent[0].available), 1000);
+  // ohne Topf wie bisher: neu verteilt
+  assert.equal(Math.round(A.fillPreview(pre, 60000, 29)[0].available), Math.round(60000 / 29));
+  // im Bericht: Einstellung schaltet um
+  const list = [tx("2026-11-01", 300000, "Muster GmbH", 4), tx("2026-11-02", -3000, "REWE", 2)];
+  const r = A.monthReport("2026-11", A.createContext({ transactions: list, categories, settings: { daily_mode: "pot" }, today: "2026-11-08" }));
+  assert.ok(r.pot && r.pot.spent === 3000);
+  assert.equal(Math.round(r.preview[0].daily), Math.round((r.budgetLeft + 3000) / 30));
+});
+
 test("Prognose ohne Vormonate: nur das Tempo dieses Monats", () => {
   const list = [tx("2026-11-01", 285000, "Muster GmbH", 4), tx("2026-11-02", -7000, "REWE", 2)];
   const r = A.monthReport("2026-11", A.createContext({ transactions: list, categories, settings: {}, today: "2026-11-02" }));

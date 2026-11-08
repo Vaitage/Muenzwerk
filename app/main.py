@@ -8,6 +8,7 @@ import os
 import sqlite3
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -392,6 +393,7 @@ class SettingsPatch(BaseModel):
     large_expense_cents: int | None = Field(default=None, ge=1000, le=10_000_000)
     review_days: int | None = Field(default=None, ge=0, le=7)
     forecast_learning: bool | None = None
+    daily_mode: Literal["spread", "pot"] | None = None
     # Kennung eines weggeklickten Hinweises, z. B. "review:2026-10" oder "dup:abc123"
     dismiss_hint: str | None = Field(default=None, pattern=r"^[A-Za-z0-9:_.\-]{1,80}$")
 
@@ -416,6 +418,7 @@ def get_settings(conn=Depends(get_db)):
         "large_expense_cents": int(db.get_setting(conn, "large_expense_cents")),
         "review_days": int(db.get_setting(conn, "review_days")),
         "forecast_learning": db.get_setting(conn, "forecast_learning") != "0",
+        "daily_mode": "pot" if db.get_setting(conn, "daily_mode") == "pot" else "spread",
         "dismissed_hints": json.loads(db.get_setting(conn, "dismissed_hints")),
     }
 
@@ -429,6 +432,8 @@ def update_settings(body: SettingsPatch, conn=Depends(get_db)):
         _put_setting(conn, "large_expense_cents", body.large_expense_cents)
     if body.review_days is not None:
         _put_setting(conn, "review_days", body.review_days)
+    if body.daily_mode is not None:
+        _put_setting(conn, "daily_mode", body.daily_mode)
     if body.forecast_learning is not None:
         _put_setting(conn, "forecast_learning", "1" if body.forecast_learning else "0")
     if body.dismiss_hint:

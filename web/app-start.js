@@ -177,6 +177,11 @@ document.addEventListener("change", async (e) => {
     try { pushInfo = await API.pushSettings({ show_amount: pa.checked }); } catch (err) { toast(err.message); pa.checked = !pa.checked; }
     return;
   }
+  const dp = e.target.closest("[data-daily-pot]");
+  if (dp) {
+    try { await API.updateSettings({ daily_mode: dp.checked ? "pot" : "spread" }); } catch (err) { toast(err.message); dp.checked = !dp.checked; return; }
+    return reload();
+  }
   const fl = e.target.closest("[data-forecast-learn]");
   if (fl) {
     try { await API.updateSettings({ forecast_learning: fl.checked }); } catch (err) { toast(err.message); fl.checked = !fl.checked; return; }

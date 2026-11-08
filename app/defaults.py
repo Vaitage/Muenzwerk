@@ -120,6 +120,8 @@ DEFAULT_SETTINGS = {
     "review_days": "3",
     # Prognose lernt aus den Vormonaten und gleicht eigene Fehler aus (1) oder rechnet nur mit diesem Monat (0)
     "forecast_learning": "1",
+    # Tagesbudget: "spread" = Übrig jeden Tag neu auf die Resttage verteilt, "pot" = fester Tagessatz, Rest bleibt im Topf
+    "daily_mode": "spread",
     # Weggeklickte Hinweise (Rückblick, Auffälligkeiten) als JSON-Liste ihrer Kennungen
     "dismissed_hints": "[]",
 }

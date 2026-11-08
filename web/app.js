@@ -5,7 +5,7 @@
 
 // Version dieser App-Dateien (gleich wie __version__ in app/__init__.py). Weicht die
 // Version des Servers ab, zeigt das Handy noch eine zwischengespeicherte Fassung.
-const APP_VERSION = "1.27.0";
+const APP_VERSION = "1.28.0";
 const A = window.Analytics;
 const { t, tn, ord, locale } = window.I18N;
 
@@ -53,7 +53,7 @@ const state = {
   categories: [],
   transactions: [],
   overrides: {},
-  settings: { shift_from_day: 15, large_expense_cents: 25000, review_days: 3, forecast_learning: true, dismissed_hints: [] },
+  settings: { shift_from_day: 15, large_expense_cents: 25000, review_days: 3, forecast_learning: true, daily_mode: "spread", dismissed_hints: [] },
   bank: { state: "none" },
   ctx: null,
 };

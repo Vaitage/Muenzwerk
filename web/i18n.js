@@ -342,6 +342,8 @@
     "voraussichtlich": "expected",
     "Prognose mit Spanne": "Forecast with range",
     "so läuft es sonst": "your usual month",
+    "Tagesbudget als Topf": "Daily budget as a pot",
+    "An: jeden Tag kommt ein fester Betrag dazu, was du nicht ausgibst, bleibt drin (heute 20 €, nichts ausgegeben → morgen 40 €). Aus: das Übrige wird jeden Tag neu auf die restlichen Tage verteilt.": "On: a fixed amount is added every day and whatever you don't spend stays in (today €20, nothing spent → tomorrow €40). Off: what's left is spread anew over the remaining days every day.",
     "Erreicht": "Reached",
     "Gefährdet": "At risk",
     "Ziel ca. {month}": "Goal approx. {month}",

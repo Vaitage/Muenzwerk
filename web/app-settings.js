@@ -103,6 +103,10 @@ function viewSettings() {
         <div class="grow"><div>${t("Prognose lernt mit")}</div><div class="hint">${t("An: lernt aus deinen letzten 6 Monaten, wie du über den Monat ausgibst, und gleicht aus, wo sie zuletzt danebenlag. Aus: rechnet nur mit deinen Ausgaben in diesem Monat.")}</div></div>
         <label class="switch"><input type="checkbox" data-forecast-learn aria-label="${t("Prognose lernt mit")}" ${settings.forecast_learning !== false ? "checked" : ""}><span></span></label>
       </div>
+      <div class="row">
+        <div class="grow"><div>${t("Tagesbudget als Topf")}</div><div class="hint">${t("An: jeden Tag kommt ein fester Betrag dazu, was du nicht ausgibst, bleibt drin (heute 20 €, nichts ausgegeben → morgen 40 €). Aus: das Übrige wird jeden Tag neu auf die restlichen Tage verteilt.")}</div></div>
+        <label class="switch"><input type="checkbox" data-daily-pot aria-label="${t("Tagesbudget als Topf")}" ${settings.daily_mode === "pot" ? "checked" : ""}><span></span></label>
+      </div>
     </section>
 
     <section class="card nav-card">

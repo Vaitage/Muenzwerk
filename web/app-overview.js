@@ -12,7 +12,7 @@ function withGoals(r) {
     ...r,
     goalPlanned: planned,
     budgetLeft: r.budgetLeft - planned,
-    preview: A.fillPreview(r.preview, r.budgetLeft - planned, r.daysLeftIncl),
+    preview: A.fillPreview(r.preview, r.budgetLeft - planned, r.daysLeftIncl, r.pot),
     // Prognose und Verlauf zeigen dasselbe „frei“ wie die Kernzahl
     forecastEnd: r.forecastEnd - planned,
     forecastLow: r.forecastLow - planned,

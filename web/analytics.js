@@ -63,7 +63,8 @@
       catMap,
       overrides,
       large: settings.large_expense_cents ?? 25000,
-      learn: settings.forecast_learning !== false,   // Prognose lernt aus Vormonaten und eigenen Fehlern
+      learn: settings.forecast_learning !== false,
+      dailyPot: settings.daily_mode === "pot",       // Tagesbudget als Topf statt jeden Tag neu verteilt   // Prognose lernt aus Vormonaten und eigenen Fehlern
       todayIso: typeof today === "string" ? today : isoOf(today),
     };
     ctx.currentMonth = ctx.todayIso.slice(0, 7);
@@ -225,7 +226,14 @@
   const previewDaily = (budgetLeft, daysLeftIncl, k, income = 0) =>
     budgetLeft / daysLeftIncl + income / Math.max(1, daysLeftIncl - k);
   // Beispiel: 200 € übrig, 10 Tage → heute 20 €, morgen 40 €, übermorgen 60 € (zusammen frei bis dahin)
-  function fillPreview(preview, budgetLeft, daysLeftIncl) {
+  // Topf (Einstellung daily_mode = "pot", pot = { spent, days, income }): fester Tagessatz = Geld des ganzen
+  // Monats (Übrig + schon frei ausgegeben + noch erwartete Einnahmen) ÷ Tage des Monats; jeden Tag kommt er dazu,
+  // was nicht ausgegeben wird, bleibt drin. Heute frei = Übrig − Tagessatz × Tage nach heute (kann negativ sein).
+  function fillPreview(preview, budgetLeft, daysLeftIncl, pot = null) {
+    if (pot) {
+      const rate = (budgetLeft + pot.spent + pot.income) / pot.days;
+      return preview.map((p, k) => ({ ...p, daily: rate, available: budgetLeft + p.income - rate * (daysLeftIncl - 1 - k) }));
+    }
     let sum = 0;
     return preview.map((p, k) => {
       const daily = previewDaily(budgetLeft, daysLeftIncl, k, p.income);
@@ -382,6 +390,8 @@
     // Vorschau heute, morgen, übermorgen: Tagesbudget = (Einnahmen − Abgebuchtes − noch offene Fixkosten)
     // ÷ Tage bis Monatsende (erwartete Einnahmen bis dahin heben es an). Angezeigt wird, was bis zu diesem
     // Tag zusammen frei ist, wenn bis dahin nichts ausgegeben wird (`available`, siehe fillPreview).
+    // Topf: was diesen Monat schon frei ausgegeben wurde (ohne Fixkosten und Sparen)
+    const potFor = () => (ctx.dailyPot ? { spent: totals.variable + totals.large, days: D, income: expectedIncomeTotal } : null);
     let preview = [];
     if (status === "current") {
       for (let k = 0; k < 3 && ctx.todayDay + k <= D; k++) {
@@ -395,7 +405,7 @@
           incoming: expectedIncome.filter((x) => x.day === day),
         });
       }
-      preview = fillPreview(preview, budgetLeft, daysLeftIncl);
+      preview = fillPreview(preview, budgetLeft, daysLeftIncl, potFor());
     }
 
     // Verlauf: was am Ende jedes Tages bis Monatsende frei war (wie „Übrig bis Monatsende“): heute = budgetLeft,
@@ -441,6 +451,7 @@
       month: m, status, days: D, elapsed, daysLeftIncl,
       totals, openFixed, openFixedTotal, expectedIncome, expectedIncomeTotal,
       pace, remaining, remainingDaily: remDays > 0 ? remaining / remDays : 0, weight, learnedMonths: hist.length,
+      pot: status === "current" ? potFor() : null,
       firstHalfShare, outlook, learning: ctx.learn, calibration: calib, budgetLeft, dailyBudget, forecastEnd, forecastLow, forecastHigh, preview,
       series: { actual, forecast, typical },
       byCategory: byCategory(list, ctx),
