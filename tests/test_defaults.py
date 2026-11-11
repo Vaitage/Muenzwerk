@@ -54,3 +54,29 @@ def test_umbuchungsregel_legt_kredit_an_wenn_geloescht(monkeypatch):
     conn.execute("DELETE FROM categories WHERE name = 'Loan'")
     accounts._ensure_rule(conn, "loan", "car loan")
     assert "Loan" in names(conn, "expense")
+
+
+def test_gehalt_und_nebenjob_zaehlen_zum_folgemonat(monkeypatch):
+    conn = fresh(monkeypatch, "de")
+    rows = {r["name"]: r["shift_next_month"] for r in conn.execute("SELECT name, shift_next_month FROM categories WHERE kind = 'income'")}
+    assert rows["Gehalt"] == 1 and rows["Nebenjob"] == 1
+    # Kommt der Lohn vom Nebenjob ab dem Stichtag, zählt er zum Folgemonat
+    nj = conn.execute("SELECT id FROM categories WHERE name = 'Nebenjob'").fetchone()["id"]
+    ledger.import_transactions(conn, [{"id": "n", "booking_date": "2026-10-28", "amount_cents": 52000,
+                                       "counterparty": "Minijob GmbH", "purpose": ""}])
+    conn.execute("UPDATE transactions SET category_id = ? WHERE id = 'n'", (nj,))
+    ledger.recompute_budget_months(conn)
+    assert conn.execute("SELECT budget_month FROM transactions WHERE id = 'n'").fetchone()[0] == "2026-11"
+
+
+def test_nebenjob_wird_bei_alter_datenbank_ergaenzt(monkeypatch):
+    conn = fresh(monkeypatch, "de")
+    conn.execute("DELETE FROM categories WHERE name = 'Nebenjob'")
+    conn.execute("DELETE FROM settings WHERE key = 'mig_side_job'")
+    db.init(conn)
+    row = conn.execute("SELECT shift_next_month FROM categories WHERE name = 'Nebenjob'").fetchone()
+    assert row["shift_next_month"] == 1
+    # nur einmal: selbst gelöscht bleibt gelöscht
+    conn.execute("DELETE FROM categories WHERE name = 'Nebenjob'")
+    db.init(conn)
+    assert conn.execute("SELECT 1 FROM categories WHERE name = 'Nebenjob'").fetchone() is None

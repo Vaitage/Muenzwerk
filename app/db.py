@@ -223,7 +223,23 @@ def init(conn: sqlite3.Connection) -> None:
 
     for key, value in defaults.DEFAULT_SETTINGS.items():
         conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (key, value))
+    _add_side_job(conn)
     conn.commit()
+
+
+def _add_side_job(conn: sqlite3.Connection) -> None:
+    """Einmalig (1.29.0): Einnahme-Kategorie „Nebenjob“ mit Folgemonat für bestehende Installationen.
+    Fehlt sie (auch unter englischem Namen), wird sie angelegt; vorhandene Kategorien bleiben unverändert."""
+    if conn.execute("SELECT 1 FROM settings WHERE key = 'mig_side_job'").fetchone():
+        return
+    names = {r[0].strip().lower() for r in conn.execute("SELECT name FROM categories WHERE kind = 'income'")}
+    if not names & {"nebenjob", "side job"}:
+        sort = conn.execute("SELECT COALESCE(MAX(sort), 0) + 1 FROM categories WHERE kind = 'income'").fetchone()[0]
+        conn.execute(
+            "INSERT INTO categories (name, kind, icon, sort, shift_next_month) VALUES (?, 'income', 'briefcase', ?, 1)",
+            ("Side job" if defaults.language() == "en" else "Nebenjob", sort),
+        )
+    conn.execute("INSERT INTO settings (key, value) VALUES ('mig_side_job', '1')")
 
 
 def _migrate(conn: sqlite3.Connection) -> None:

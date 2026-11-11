@@ -704,6 +704,7 @@
     "Unterhaltung": "Entertainment",
     "Gehalt": "Salary",
     "Nebeneinkünfte": "Side income",
+    "Nebenjob": "Side job",
     "Erstattungen": "Refunds",
     "Zinsen & Dividenden": "Interest & dividends",
     "Geschenke erhalten": "Gifts received",

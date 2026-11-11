@@ -46,7 +46,7 @@ SAVINGS_KEYS = {"savings"}
 # (Schlüssel, Icon, zählt zum Folgemonat, Deutsch, Englisch)
 INCOME_CATEGORIES = [
     ("salary", "wallet", True, "Gehalt", "Salary"),
-    ("side_income", "briefcase", False, "Nebeneinkünfte", "Side income"),
+    ("side_job", "briefcase", True, "Nebenjob", "Side job"),
     ("refunds", "undo", False, "Erstattungen", "Refunds"),
     ("interest", "coins", False, "Zinsen & Dividenden", "Interest & dividends"),
     ("gifts_received", "gift", False, "Geschenke erhalten", "Gifts received"),
