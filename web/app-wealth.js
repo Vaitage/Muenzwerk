@@ -54,11 +54,14 @@ const CHECK_TEXT = {
 const GOAL_ICONS = ["piggy", "plane", "home", "car", "gift", "shield", "heart", "laptop", "graduation", "paw", "shirt", "coins"];
 
 // Status oben rechts: Im Plan / Gefährdet / Erreicht (ohne Datum: wann es voraussichtlich klappt)
+// Im Plan = Rate diesen Monat drin + Ziel schaffbar; Im Blick = diesen Monat reicht es nicht, Ziel aber schaffbar;
+// Gefährdet = nötige Rate höher als das, was sonst im Monat übrig bleibt
 function goalPill(g) {
   if (g.status === "reached") return ["ok", t("Erreicht")];
+  if (g.status === "late") return ["bad", t("Gefährdet")];
+  if (g.status === "watch") return ["warn", t("Im Blick")];
   if (g.status === "ok") return ["ok", t("Im Plan")];
-  if (!g.goal.target_month) return g.reach ? ["", t("Ziel ca. {month}", { month: `${shortMonth(g.reach)} ${g.reach.slice(0, 4)}` })] : ["warn", t("Gefährdet")];
-  return ["warn", t("Gefährdet")];
+  return g.reach ? ["", t("Ziel ca. {month}", { month: `${shortMonth(g.reach)} ${g.reach.slice(0, 4)}` })] : ["", t("Ohne Datum")];
 }
 
 const GOAL_CHECK = '<path d="m5 12 5 5 9-10"/>';
@@ -100,24 +103,43 @@ function goalRow(g) {
     ? t("{amount} bis {date}", { amount: fmt0(gl.target_cents), date: gl.end_date ? dateDE(gl.end_date) : monthLabel(gl.target_month) })
     : t("{amount} · {rate} pro Monat", { amount: fmt0(gl.target_cents), rate: fmt0(gl.monthly_cents) });
 
-  // Prognose in einem Satz: reicht, was diesen Monat übrig bleibt, für die Rate?
-  let note = "", warn = false;
-  if (!reached && g.rate > 0) {
-    const fe = rep.forecastEnd ?? 0;
-    if (g.expectedNow >= g.rate) {
-      note = t("Laut Prognose bleiben Ende {month} rund {amount} übrig – die {rate} sind drin.", { month, amount: `<b>${fmt0(fe)}</b>`, rate: fmt0(g.rate) })
-        + (g.reach ? " " + t("So erreichst du das Ziel im {month}.", { month: `<b>${monthLabel(g.reach)}</b>` }) : "");
-    } else {
-      warn = true;
-      note = fe > 0
-        ? t("Laut Prognose bleiben Ende {month} nur rund {amount} übrig – aufs Ziel kommen dann {part} statt {rate}.", { month, amount: `<b>${fmt0(fe)}</b>`, part: fmt0(Math.max(0, g.expectedNow)), rate: fmt0(g.rate) })
-        : t("Laut Prognose fehlen dir Ende {month} rund {amount}. Dann kommt diesen Monat nichts aufs Ziel.", { month, amount: `<b>${fmt0(-fe)}</b>` });
-      if (gl.target_month && g.needNext && addMonths(thisMonth, 1) <= gl.target_month) {
-        note += " " + t("Ab {month} wären es {amount} pro Monat.", { month: monthName(addMonths(thisMonth, 1)), amount: `<b>${fmt0(g.needNext)}</b>` });
-      }
-      if (rep.tipDaily > 100) note += `<span class="goal-tip"><b>${t("Tipp:")}</b> ${t("Gib bis Monatsende höchstens {amount} pro Tag für Variables aus, dann klappt es diesen Monat.", { amount: `<b>${fmt(Math.floor(rep.tipDaily / 100) * 100)}</b>` })}</span>`;
+  // Ein Satz je Lage – Prognose nur als Hinweis, „gefährdet“ erst, wenn das Ziel bis zum Enddatum nicht mehr passt
+  let note = "", level = "ok";
+  const next = monthName(addMonths(thisMonth, 1));
+  const endLabel = gl.end_date ? monthLabel(gl.end_date.slice(0, 7)) : gl.target_month ? monthLabel(gl.target_month) : "";
+  const b = (x) => `<b>${x}</b>`;
+  if (!reached && g.status === "late") {
+    level = "bad";
+    const need = g.needNext || Math.max(0, gl.target_cents - g.saved);
+    note = rep.avgSurplus > 0
+      ? t("Bis {end} bräuchtest du jetzt {need} im Monat – in den letzten Monaten blieben dir im Schnitt nur {avg} übrig.", { end: endLabel, need: b(fmt0(need)), avg: b(fmt0(rep.avgSurplus)) })
+      : t("Bis {end} bräuchtest du jetzt {need} im Monat – in den letzten Monaten blieb dir im Schnitt nichts übrig.", { end: endLabel, need: b(fmt0(need)) });
+    note += " " + (g.reach
+      ? t("Mit diesem Tempo erreichst du das Ziel etwa im {month}.", { month: b(monthLabel(g.reach)) })
+      : t("Mit diesem Tempo erreichst du das Ziel so nicht."));
+  } else if (!reached && g.rate > 0 && !g.monthOk) {
+    level = "warn";
+    note = g.coverNow > 0
+      ? t("Diesen Monat sind nur noch {part} statt {rate} fürs Ziel übrig.", { part: b(fmt0(g.coverNow)), rate: fmt0(g.rate) })
+      : t("Diesen Monat ist nichts fürs Ziel übrig.");
+    if (g.needNext) note += " " + t("Kein Problem: ab {month} {amount} im Monat, dann klappt es bis {end}.", { month: next, amount: b(fmt0(g.needNext)), end: endLabel });
+  } else if (!reached && g.rate > 0 && !g.forecastOk) {
+    level = "warn";
+    note = `<b>${t("Im Blick behalten:")}</b> `
+      + (rep.paceDaily > 0
+        ? t("Bei deinem bisherigen Tempo (ca. {pace} pro Tag) wird es Ende {month} knapp.", { pace: fmt0(rep.paceDaily), month })
+        : t("Laut Prognose wird es Ende {month} knapp.", { month }));
+    if (rep.tipDaily > 100) note += " " + t("Gibst du bis Monatsende höchstens {amount} pro Tag aus, sind die {rate} sicher.", { amount: b(fmt(Math.floor(rep.tipDaily / 100) * 100)), rate: fmt0(g.rate) });
+    if (g.needIfNone && g.needNext) {
+      note += " " + (g.feasibleIfNone
+        ? t("Klappt es nicht, ist das Ziel nicht in Gefahr – ab {month} wären es dann {more} statt {amount} im Monat.", { month: next, more: b(fmt0(g.needIfNone)), amount: fmt0(g.needNext) })
+        : t("Klappt es nicht, wird es fürs Ziel eng – ab {month} wären es dann {more} statt {amount} im Monat.", { month: next, more: b(fmt0(g.needIfNone)), amount: fmt0(g.needNext) }));
     }
+  } else if (!reached && g.rate > 0) {
+    note = t("Läuft – die {rate} sind diesen Monat drin.", { rate: b(fmt0(g.rate)) })
+      + (!gl.target_month && g.reach ? " " + t("So erreichst du das Ziel im {month}.", { month: b(monthLabel(g.reach)) }) : "");
   }
+  const warn = level !== "ok";
   const showPlan = g.plannedMonthEnd != null && !reached;
 
   return `<div class="goal">
@@ -138,10 +160,11 @@ function goalRow(g) {
       <div><b>${fmt0(g.rate)}</b> <span class="sub">≈ ${t("{amount} pro Tag", { amount: fmt(Math.round(g.perDay)) })}</span></div>
       <span class="sub">${t("Schon von „Übrig bis Monatsende“ abgezogen – du musst nichts überweisen.")}</span>
     </div>` : ""}
-    ${note ? `<div class="goal-note ${warn ? "warn" : "ok"}">${icon(warn ? "alert" : "check")}<div>${note}</div></div>` : ""}
+    ${note ? `<div class="goal-note ${level}">${icon(warn ? "alert" : "check")}<div>${note}</div></div>` : ""}
     ${reached ? "" : goalPath(g, warn)}
     <details class="goal-how"><summary>${t("Wie wird gerechnet?")}</summary>
-      <p>${t("Fürs Ziel zählt, was am Monatsende übrig bleibt – höchstens die Rate des Monats. Reicht es nicht, verteilt sich der Rest auf die übrigen Monate bis zum Enddatum. Die Rate ist schon von „Übrig bis Monatsende“ und dem Tagesbudget abgezogen.")}</p></details>
+      <p>${t("Fürs Ziel zählt, was am Monatsende übrig bleibt – höchstens die Rate des Monats. Reicht es nicht, verteilt sich der Rest auf die übrigen Monate bis zum Enddatum. Die Rate ist schon von „Übrig bis Monatsende“ und dem Tagesbudget abgezogen.")}</p>
+      <p>${t("Im Plan: Das Geld für die Rate ist diesen Monat da. Im Blick: Diesen Monat reicht es nicht ganz, die Rate steigt dafür ab nächstem Monat etwas. Gefährdet: Die nötige Rate ist höher als das, was dir in den letzten Monaten im Schnitt übrig blieb.")}</p></details>
   </div>`;
 }
 

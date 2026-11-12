@@ -288,7 +288,7 @@ test("Sparziel: zu wenig Überschuss wird im Verhältnis der Raten verteilt", ()
   assert.equal(ga.history[0].rate, 26667);
   assert.equal(ga.history[0].credit + gb.history[0].credit, 141100);
   assert.equal(ga.history[0].credit, Math.round((26667 * 141100) / 226667));
-  assert.equal(gb.status, null);               // ohne Datum: nur Prognose
+  assert.equal(gb.status, "watch");            // ohne Datum: 2.000 € Rate sind diesen Monat nicht mehr drin
   assert.ok(gb.reach > "2026-10");
 });
 
@@ -546,4 +546,37 @@ test("Prognose ohne Vormonate: nur das Tempo dieses Monats", () => {
   assert.equal(r.series.typical.length, 0);
   // Frei-Linie: vor dem Einkauf am 2. war mehr frei
   assert.equal(r.series.actual[0].value, Math.round(r.budgetLeft + 7000));
+});
+
+test("Sparziel-Bewertung: im Plan, im Blick, gefährdet (nach Geld jetzt und Schaffbarkeit)", () => {
+  const ctx = ctxFor("2026-10-14");
+  const rep = A.monthReport("2026-10", ctx);
+  const free = rep.budgetLeft + rep.expectedIncomeTotal;      // jetzt noch da
+  const base = { id: 1, name: "Z", start_month: "2026-10", start_cents: 0 };
+  // kleine Rate, Geld da → im Plan
+  const ok = A.goalsReport(ctx, [{ ...base, target_cents: 70000, target_month: "2027-05" }]).goals[0];
+  assert.equal(ok.status, "ok");
+  assert.ok(ok.monthOk);
+  // Rate diesen Monat höher als das, was noch da ist, ab November aber gut schaffbar → im Blick
+  // (Oktober mit großer Einzelausgabe: wenig übrig, Vormonate normal)
+  const extra = sample();
+  extra.push(tx("2026-10-10", -150000, "Werkstatt", 5));
+  const tight = A.createContext({ transactions: extra, categories, settings: { large_expense_cents: 25000 }, today: "2026-10-14" });
+  const rt = A.monthReport("2026-10", tight);
+  const freeT = rt.budgetLeft + rt.expectedIncomeTotal;
+  const rest = 2 * (freeT + 50000);
+  const r = A.goalsReport(tight, [{ ...base, target_cents: rest, target_month: "2026-11" }]);
+  const w = r.goals[0];
+  assert.ok(w.needNext <= r.avgSurplus, "Testannahme: im November schaffbar");
+  assert.equal(w.status, "watch");
+  assert.equal(w.coverNow, freeT);
+  assert.equal(w.needNext, rest - freeT);
+  assert.ok(free > freeT);
+  // nötige Rate weit über dem üblichen Überschuss → gefährdet
+  const late = A.goalsReport(ctx, [{ ...base, target_cents: 5000000, target_month: "2026-12" }]).goals[0];
+  assert.equal(late.status, "late");
+  assert.ok(late.needNext > r.avgSurplus);
+  // ohne Vormonate gibt es keinen Vergleich → nicht gefährdet
+  const fresh = A.createContext({ transactions: [], categories, today: "2026-10-14" });
+  assert.notEqual(A.goalsReport(fresh, [{ ...base, target_cents: 5000000, target_month: "2026-12" }]).goals[0].status, "late");
 });

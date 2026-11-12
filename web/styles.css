@@ -897,6 +897,7 @@ button.hm:active { transform: scale(0.94); }
 .goal-pill { flex: none; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; color: var(--muted); background: var(--surface-2); }
 .goal-pill.ok { color: var(--income); background: color-mix(in srgb, var(--income) 13%, transparent); }
 .goal-pill.warn { color: var(--warn); background: var(--warn-soft); }
+.goal-pill.bad { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
 .goal-amt { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 12px; }
 .goal-amt > b { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .goal-amt > span { font-size: 13px; color: var(--muted); text-align: right; }
@@ -913,6 +914,8 @@ button.hm:active { transform: scale(0.94); }
 .goal-note.ok > .ic { color: var(--income); }
 .goal-note.warn { background: var(--warn-soft); }
 .goal-note.warn > .ic { color: var(--warn); }
+.goal-note.bad { background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.goal-note.bad > .ic { color: var(--danger); }
 .goal-tip { display: block; margin-top: 8px; }
 .goal-path { list-style: none; margin: 16px 0 0; padding: 0; display: flex; }
 .goal-path li { flex: 1; min-width: 0; text-align: center; position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; }

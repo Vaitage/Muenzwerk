@@ -863,6 +863,8 @@
     const report = monthReport(cur, ctx);
     const ratesNow = states.map((s) => goalRate(s, cur));
     const expectedNow = distribute(ratesNow, report.forecastEnd);
+    // Ist das Geld für die Raten jetzt noch da? (Übrig bis Monatsende + noch erwartete Einnahmen)
+    const coverNow = distribute(ratesNow, report.budgetLeft + report.expectedIncomeTotal);
 
     // Prognose: Schnitt der letzten 3 abgeschlossenen Monate mit Umsätzen
     const past = [];
@@ -872,18 +874,39 @@
     sim.forEach((s) => { if (!s.reached && s.saved >= s.goal.target_cents) s.reached = cur; });
     if (avg > 0) for (let m = addMonths(cur, 1), n = 0; n < 240 && sim.some((s) => !s.reached); m = addMonths(m, 1), n++) step(sim, m, avg, false);
 
+    // Bewertung (1.30.0): „gefährdet“ erst, wenn die Zeit zu knapp wird und das Geld nicht mehr da ist:
+    //   ok    = Rate dieses Monats ist noch gedeckt und das Ziel ist bis zum Enddatum schaffbar
+    //   watch = diesen Monat reicht es nicht (ganz), das Ziel ist aber weiter schaffbar (Rate ab nächstem Monat höher)
+    //   late  = schaffbar nur mit mehr pro Monat, als in den letzten Monaten im Schnitt übrig blieb
+    // Schaffbar: Summe der ab nächstem Monat nötigen Raten aller Ziele ≤ Schnitt-Überschuss (ohne Vormonate: ja).
+    const months = (g) => (g.target_month ? monthsBetween(cur, g.target_month) : null);   // Monate nach dem laufenden
+    const keepNow = states.map((s, i) => Math.min(ratesNow[i], Math.max(0, coverNow[i])));
+    const needFrom = (s, i, kept) => {
+      const g = s.goal, left = months(g);
+      if (s.reached) return 0;
+      if (!g.target_month) return Math.min(g.target_cents - s.saved - kept, g.monthly_cents || 0);
+      return left > 0 ? Math.max(0, Math.ceil((g.target_cents - s.saved - kept) / left)) : 0;
+    };
+    const needs = states.map((s, i) => needFrom(s, i, keepNow[i]));
+    const needsNone = states.map((s, i) => needFrom(s, i, 0));
+    const capacity = past.length ? avg : null;
+    const fits = (list) => capacity == null || list.reduce((a, b) => a + b, 0) <= Math.max(0, capacity);
+    const feasible = fits(needs), feasibleIfNone = fits(needsNone);
+
     const result = states.map((s, i) => {
       const g = s.goal;
       const rate = ratesNow[i];
       const reach = sim[i].reached;
+      const monthOk = keepNow[i] >= rate;
       let status = null, lateBy = 0, needNext = null, planned = null, plannedMonthEnd = null;
       if (s.reached) status = "reached";
       else if (g.target_month) {
         lateBy = reach ? Math.max(0, monthsBetween(g.target_month, reach)) : null;
-        status = reach == null ? "late" : lateBy === 0 ? "ok" : lateBy === 1 ? "tight" : "late";
-        const left = monthsBetween(cur, g.target_month);           // Monate nach dem laufenden
-        const rest = g.target_cents - s.saved - Math.max(0, expectedNow[i]);
-        needNext = left > 0 ? Math.max(0, Math.ceil(rest / left)) : null;
+        const left = months(g);
+        // letzter Monat: schaffbar nur, wenn das Geld jetzt da ist
+        const ok = left > 0 ? feasible : monthOk;
+        status = !ok ? "late" : monthOk ? "ok" : "watch";
+        needNext = left > 0 ? needs[i] : null;
         const total = monthsBetween(g.start_month, g.target_month) + 1;
         const done = Math.min(total, Math.max(0, monthsBetween(g.start_month, cur)));
         planned = Math.round((g.start_cents || 0) + (g.target_cents - (g.start_cents || 0)) * (done / total));
@@ -894,12 +917,14 @@
           frac = Math.min(1, Math.max(0, (dayNo(end < g.end_date ? end : g.end_date) - dayNo(g.start_date) + 1) / (dayNo(g.end_date) - dayNo(g.start_date) + 1)));
         }
         plannedMonthEnd = Math.round((g.start_cents || 0) + (g.target_cents - (g.start_cents || 0)) * frac);
-      }
+      } else if (!monthOk && rate > 0) status = "watch";           // ohne Datum: nur „diesen Monat reicht es nicht“
       // Tage des laufenden Monats, auf die sich die Rate verteilt (taggenau: nur die im Zeitraum)
       const days = g.end_date ? Math.max(1, goalWindow(g, cur).inMonth) : daysIn(cur);
       return {
         goal: g, saved: s.saved, reached: s.reached, rate, perDay: rate / days,
-        expectedNow: expectedNow[i], reach, status, lateBy, needNext, planned, plannedMonthEnd,
+        expectedNow: expectedNow[i], coverNow: keepNow[i], monthOk, forecastOk: expectedNow[i] >= rate,
+        needIfNone: g.target_month && months(g) > 0 ? needsNone[i] : null, feasibleIfNone,
+        reach, status, lateBy, needNext, planned, plannedMonthEnd,
         history: s.history.slice(-3),
       };
     });
@@ -907,7 +932,9 @@
     // Tipp: höchstens so viel pro Tag (variabel) ausgeben, damit alle Raten dieses Monats drin sind
     const remDays = report.days - report.elapsed;
     const tipDaily = remDays > 0 ? (report.budgetLeft + report.expectedIncomeTotal - plannedNow) / remDays : null;
-    return { goals: result, planned: plannedNow, avgSurplus: avg, forecastEnd: report.forecastEnd, tipDaily };
+    // so viel pro Tag rechnet die Prognose bis Monatsende noch an Ausgaben
+    const paceDaily = remDays > 0 ? (report.budgetLeft + report.expectedIncomeTotal - report.forecastEnd) / remDays : null;
+    return { goals: result, planned: plannedNow, avgSurplus: avg, hasHistory: past.length > 0, forecastEnd: report.forecastEnd, tipDaily, paceDaily };
   }
 
   // ------------------------------------------------------------ Heatmap: Ausgaben je Tag
