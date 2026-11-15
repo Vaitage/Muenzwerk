@@ -1,3 +1,7 @@
+# Fester Projektname, damit der Update-Dienst nur die eigenen alten Images aufräumt.
+# Weitere Installationen auf dem Pi heißen wie ihr CONTAINER_NAME (z. B. haushaltsbuch-2).
+name: ${CONTAINER_NAME:-haushaltsbuch}
+
 services:
   haushaltsbuch:
     build: .

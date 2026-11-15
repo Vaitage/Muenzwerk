@@ -206,4 +206,10 @@ status_schreiben 0
 
 # Neueste Fassung dieses Skripts für den nächsten Lauf (neue Datei, der laufende Prozess liest weiter die alte)
 install -m 755 "$HAUPT/tools/pi/selbst-aktualisieren.sh" "$HOME/.local/bin/kontor-update.sh"
-docker image prune -f >/dev/null 2>&1 || true
+# Alte Images aufräumen – nur die der eigenen Compose-Projekte, nie die anderer Apps auf dem Pi
+for dir in "$HAUPT" "$HAUPT"-*; do
+  [ -f "$dir/docker-compose.yml" ] || continue
+  projekt="$(cd "$dir" && docker compose config 2>/dev/null | sed -n 's/^name: *//p' | head -1)"
+  [ -n "$projekt" ] || continue
+  docker image prune -f --filter "label=com.docker.compose.project=$projekt" >/dev/null 2>&1 || true
+done
