@@ -378,7 +378,7 @@ button.catrow:active { background: var(--surface-2); }
 .outlook .ic { width: 13px; height: 13px; stroke-width: 2.6; }
 .outlook.ok { color: var(--income); background: color-mix(in srgb, var(--income) 13%, transparent); }
 .outlook.tight { color: var(--warn); background: var(--warn-soft); }
-.outlook.minus { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.outlook.minus { color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); }  /* 12 % war hell nur 4,3:1 */
 .outlook.early { color: var(--muted); background: var(--surface-2); }
 .fc-big { display: flex; align-items: baseline; gap: 10px; margin-top: 10px; }
 .fc-big .big2 { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; }
